@@ -1,46 +1,206 @@
 let score = 0;
-let currentGame = 'assets/tomato1.png';  // Static starting image
+let bestScore = 0;
+let currentEquation = { text: '', correctAnswer: 0 };
+let currentDifficulty = 'easy';
+let timeLeft = 0;
+let timerInterval = null;
 
-// Function to update the score
-function updateScore() {
-    document.getElementById('score').innerText = 'Score: ' + score;
-}
-
-// Function to create number buttons (0-9)
-function createButtons() {
-    const buttonContainer = document.getElementById('buttons');
-    for (let i = 0; i < 10; i++) {
-        const button = document.createElement('button');
-        button.textContent = i;  // Set button text to the number
-        button.onclick = () => checkAnswer(i);  // Call checkAnswer when clicked
-        buttonContainer.appendChild(button);
+function setDifficultyFromUI() {
+    const select = document.getElementById('difficulty');
+    if (select) {
+        currentDifficulty = select.value;
     }
 }
 
-// Function to check if the player's answer is correct
-function checkAnswer(answer) {
-    const correct = (answer === 1);  // Simple logic: the correct answer is 1
-    if (correct) {
-        score++;  // Increase score for correct answer
-        alert('Correct!');
-        updateScore();
-        changeImage();  // Change the image for the next round
+function startTimer() {
+    const timerElement = document.getElementById('timer');
+    if (!timerElement) return;
+
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+
+    if (currentDifficulty === 'easy') {
+        timeLeft = 20;
+    } else if (currentDifficulty === 'medium') {
+        timeLeft = 15;
     } else {
-        alert('Wrong! Try again.');
+        timeLeft = 10;
+    }
+
+    timerElement.innerText = `Time: ${timeLeft}`;
+
+    timerInterval = setInterval(() => {
+        timeLeft -= 1;
+        timerElement.innerText = `Time: ${timeLeft}`;
+
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            alert('Time is up! New question.');
+            generateNewEquation();
+        }
+    }, 1000);
+}
+
+function generateNewEquation() {
+    setDifficultyFromUI();
+
+    let min = 1;
+    let max = 10;
+    let operations = ['+'];
+
+    if (currentDifficulty === 'medium') {
+        max = 20;
+        operations = ['+', '-'];
+    } else if (currentDifficulty === 'hard') {
+        max = 50;
+        operations = ['+', '-', '*'];
+    }
+
+    const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+    const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+    const operation = operations[Math.floor(Math.random() * operations.length)];
+
+    let correctAnswer;
+    let text;
+    if (operation === '+') {
+        correctAnswer = num1 + num2;
+        text = `${num1} + ${num2} = ?`;
+    } else if (operation === '-') {
+        correctAnswer = num1 - num2;
+        text = `${num1} - ${num2} = ?`;
+    } else {
+        correctAnswer = num1 * num2;
+        text = `${num1} × ${num2} = ?`;
+    }
+
+    currentEquation = { text, correctAnswer };
+
+    const equationElement = document.getElementById('equation');
+    if (equationElement) {
+        equationElement.innerText = currentEquation.text;
+    }
+
+    const answerInput = document.getElementById('answer');
+    if (answerInput) {
+        answerInput.value = '';
+        answerInput.focus();
+    }
+
+    const bananaImage = document.getElementById('banana-image');
+    if (bananaImage) {
+        bananaImage.src = getRandomBananaImage();
+    }
+
+    startTimer();
+}
+
+function getRandomBananaImage() {
+    const images = ['assets/banana1.png', 'assets/banana2.png', 'assets/banana3.png'];
+    const randomIndex = Math.floor(Math.random() * images.length);
+    return images[randomIndex];
+}
+
+function updateScoreUI() {
+    const scoreElement = document.getElementById('score');
+    if (scoreElement) {
+        scoreElement.innerText = `Score: ${score}`;
+    }
+
+    const bestScoreElement = document.getElementById('best-score');
+    if (bestScoreElement) {
+        bestScoreElement.innerText = `Best score: ${bestScore}`;
     }
 }
 
-// Function to change the game image (this is a static image for now)
-function changeImage() {
-    const newImage = (currentGame === 'assets/tomato1.png') ? 'assets/tomato2.png' : 'assets/tomato1.png';
-    currentGame = newImage;
-    document.getElementById('tomato-image').src = currentGame;
+function checkAnswer() {
+    const answerInput = document.getElementById('answer');
+    if (!answerInput) return;
+
+    const answer = parseInt(answerInput.value, 10);
+    if (isNaN(answer)) {
+        alert('Please enter a number.');
+        return;
+    }
+
+    if (answer === currentEquation.correctAnswer) {
+        score++;
+        alert('Correct!');
+        saveScoreToServer();
+        generateNewEquation();
+    } else {
+        alert(`Wrong! The correct answer was ${currentEquation.correctAnswer}.`);
+        generateNewEquation();
+    }
+
+    updateScoreUI();
 }
 
-// Initialize the game when the page loads
-function initGame() {
-    createButtons();  // Create number buttons
-    updateScore();    // Initialize the score
+function saveScoreToServer() {
+    fetch('save_score.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            score: score,
+            difficulty: currentDifficulty,
+        }),
+    })
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.bestScore !== undefined) {
+                bestScore = data.bestScore;
+                updateScoreUI();
+            }
+        })
+        .catch(() => {
+            // Ignore errors for now (e.g., not logged in)
+        });
 }
 
-window.onload = initGame;  // Start the game when the page is loaded
+function loadUserInfoAndBestScore() {
+    fetch('me.php')
+        .then((response) => response.json())
+        .then((data) => {
+            const userInfoElement = document.getElementById('user-info');
+            if (userInfoElement) {
+                if (data.loggedIn) {
+                    userInfoElement.innerText = `Logged in as: ${data.username}`;
+                } else {
+                    userInfoElement.innerHTML = 'Not logged in. <a href="login.html">Login</a>';
+                }
+            }
+        })
+        .catch(() => {});
+
+    fetch('get_best_score.php')
+        .then((response) => response.json())
+        .then((data) => {
+            if (data.bestScore !== undefined) {
+                bestScore = data.bestScore;
+                updateScoreUI();
+            }
+        })
+        .catch(() => {});
+}
+
+window.onload = function () {
+    const submitButton = document.getElementById('submit-answer');
+    if (submitButton) {
+        submitButton.addEventListener('click', checkAnswer);
+    }
+
+    const difficultySelect = document.getElementById('difficulty');
+    if (difficultySelect) {
+        difficultySelect.addEventListener('change', () => {
+            score = 0;
+            updateScoreUI();
+            generateNewEquation();
+        });
+    }
+
+    loadUserInfoAndBestScore();
+    generateNewEquation();
+    updateScoreUI();
+};
