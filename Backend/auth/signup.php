@@ -1,9 +1,14 @@
 <?php
 // auth/signup.php
 session_start();
+// determine base path (everything before /Backend)
+$basePath = preg_replace('#/Backend.*$#', '', $_SERVER['PHP_SELF']);
+if ($basePath === '') { $basePath = '/'; }
+// normalize with trailing slash
+$basePath = rtrim($basePath, '/') . '/';
 // redirect logged-in visitors away from signup
 if (isset($_SESSION['user_id'])) {
-    header('Location: ../../index.php');
+    header('Location: ' . $basePath . 'index.php');
     exit;
 }
 // include shared database helper from Backend/db
@@ -34,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->bind_param('ss', $username, $hash);
             if ($stmt->execute()) {
                 // redirect to login page (relative to auth folder)
-                header('Location: login.php?signup=1');
+                header('Location: ' . $basePath . 'Backend/auth/login.php?signup=1');
                 exit;
             } else {
                 $message = 'Registration failed, please try again.';
@@ -52,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/2541609_Game/frontend/styles/style.css">
+    <link rel="stylesheet" href="<?php echo $basePath; ?>frontend/styles/style.css">
 </head>
 <body class="auth-page">
     <div class="auth-shell">
@@ -72,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
             <p class="auth-footer-text">
                 Already have an account?
-                <a href="login.php" class="auth-link">Log in</a>
+                <a href="<?php echo $basePath; ?>Backend/auth/login.php" class="auth-link">Log in</a>
             </p>
         </div>
     </div>
