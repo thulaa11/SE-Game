@@ -46,8 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($valid) {
                 $_SESSION['user_id'] = $id;
                 $_SESSION['username'] = $username;
-                // redirect to main index at workspace root
-                header('Location: ../../index.php');
+                // redirect to game page at workspace root
+                header('Location: ' . $basePath . 'index.php');
                 exit;
             } else {
                 $message = 'Invalid username or password.';
@@ -108,6 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </p>
         </div>
     </div>
-    <script src="/2541609_Game/frontend/js/login.js"></script>
+    <script src="<?php echo $basePath; ?>frontend/js/login.js"></script>
 </body>
 </html>

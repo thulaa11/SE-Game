@@ -18,14 +18,15 @@ $firstLetter = strtoupper(substr($username, 0, 1));
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Banana Game</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Kid-friendly rounded fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="frontend/styles/style.css">
     <script>
         window.BANANA_USERNAME = <?php echo json_encode($_SESSION['username']); ?>;
         window.BANANA_BASE = <?php echo json_encode($basePath); ?>;
     </script>
 </head>
-<body data-theme="dark">
+<body data-theme="jungle">
     <!-- Loading Screen -->
     <div id="loading-screen" class="loading-screen">
         <div class="loading-content">
@@ -58,66 +59,64 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                     </button>
                     
                     <!-- Profile Dropdown Modal -->
-                    <div id="profile-panel" class="profile-dropdown" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="profile-panel-title">
-                        <div class="profile-panel-card">
+                    <div id="profile-panel" class="profile-dropdown glass-panel" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="profile-panel-title">
+                        <div class="profile-panel-card glass-panel">
                             <div class="profile-panel-header">
                                 <h3 id="profile-panel-title">Profile</h3>
                                 <button type="button" class="btn-close-dropdown" id="btn-close-profile" aria-label="Close profile">✕</button>
                             </div>
 
                             <div class="profile-panel-content">
-                                <div class="profile-panel-hero">
-                                    <div id="profile-avatar-circle" class="profile-avatar-circle">
-                                        <span id="profile-avatar-letter" class="avatar-text"><?php echo $firstLetter; ?></span>
+                            <div class="profile-panel-hero">
+                                <div id="profile-avatar-circle" class="profile-avatar-circle">
+                                    <img id="profile-avatar-image" alt="Player avatar" class="profile-avatar-image" />
+                                </div>
+                                <div class="profile-hero-meta">
+                                    <div class="profile-name-editable">
+                                        <h4 id="profile-username" class="profile-username"><?php echo $username; ?></h4>
+                                        <button type="button" id="btn-edit-name" class="btn-icon-small" aria-label="Rename username" title="Rename username">✏️</button>
                                     </div>
-                                    <div class="profile-hero-meta">
-                                        <div class="profile-name-editable">
-                                            <h4 id="profile-username" class="profile-username"><?php echo $username; ?></h4>
-                                            <button type="button" id="btn-edit-name" class="btn-icon-small" aria-label="Rename username" title="Rename username">✏️</button>
+                                    <div id="inline-rename-form" class="inline-rename-form hidden">
+                                        <input type="text" id="inline-new-username"
+                                               placeholder="New username..."
+                                               minlength="2" maxlength="20"
+                                               class="inline-rename-input" />
+                                        <div class="inline-rename-actions">
+                                            <button type="button" id="btn-inline-cancel-rename"
+                                                    class="btn-cancel-small">Cancel</button>
+                                            <button type="button" id="btn-inline-save-rename"
+                                                    class="btn-save-small">Save ✓</button>
                                         </div>
-                                        <div id="inline-rename-form" class="inline-rename-form hidden">
-                                            <input type="text" id="inline-new-username"
-                                                   placeholder="New username..."
-                                                   minlength="2" maxlength="20"
-                                                   class="inline-rename-input" />
-                                            <div class="inline-rename-actions">
-                                                <button type="button" id="btn-inline-cancel-rename"
-                                                        class="btn-cancel-small">Cancel</button>
-                                                <button type="button" id="btn-inline-save-rename"
-                                                        class="btn-save-small">Save ✓</button>
-                                            </div>
-                                            <p id="inline-rename-message" class="inline-rename-msg"></p>
-                                        </div>
-                                        <div class="profile-subtext">
-                                            <span id="profile-email">—</span>
-                                            <span class="dot-sep">•</span>
-                                            <span>Joined <strong id="profile-join-date">—</strong></span>
-                                        </div>
+                                        <p id="inline-rename-message" class="inline-rename-msg"></p>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div class="profile-rank-row">
-                                    <span id="profile-rank-badge" class="rank-badge rank-beginner">Beginner</span>
-                                    <span id="profile-rank-progress-text" class="rank-progress-text">0 / 100</span>
+                            <div class="profile-stats-grid profile-stats-grid--compact">
+                                <div class="profile-stat">
+                                    <div class="label">🏆 Top Score</div>
+                                    <div id="profile-best-score" class="value">0</div>
                                 </div>
-                                <div class="rank-progress-track" aria-hidden="true">
-                                    <div id="profile-rank-progress-bar" class="rank-progress-bar" style="width: 0%"></div>
+                                <div class="profile-stat">
+                                    <div class="label">🪙 Total Coins</div>
+                                    <div id="profile-coins" class="value">0</div>
                                 </div>
+                                <div class="profile-stat">
+                                    <div class="label">🎮 Current Level</div>
+                                    <div id="profile-level" class="value">1</div>
+                                </div>
+                            </div>
+                            <div class="profile-actions-row">
+                                <button type="button" id="btn-upgrade-level" class="btn-primary" style="width:100%;">Upgrade to Next Level (10 🪙)</button>
+                            </div>
+                            <p id="profile-upgrade-message" class="profile-upgrade-message"></p>
 
-                                <div class="profile-stats-grid">
-                                    <div class="profile-stat">
-                                        <div class="label">Session score</div>
-                                        <div id="profile-session-score" class="value">0</div>
-                                    </div>
-                                    <div class="profile-stat">
-                                        <div class="label">Personal best</div>
-                                        <div id="profile-best-score" class="value">0</div>
-                                    </div>
-                                    <div class="profile-stat">
-                                        <div class="label">Puzzles attempted</div>
-                                        <div id="profile-games-played" class="value">0</div>
-                                    </div>
+                            <section class="profile-leaderboard">
+                                <h4 class="profile-leaderboard-title">Top 3 Players</h4>
+                                <div id="top3-leaderboard" class="top3-leaderboard-list">
+                                    <!-- filled by JS -->
                                 </div>
+                            </section>
                             </div>
                         </div>
                     </div>
@@ -132,13 +131,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
             <main id="game" class="game-section">
                 
                 <div class="game-top-bar">
-                    <div class="streak-container">
-                        <span class="streak-icon">🔥</span>
-                        <div class="streak-info">
-                            <span class="streak-text">Streak: <strong id="streak">0</strong></span>
-                            <span id="streak-multiplier" class="streak-multiplier hidden">x2</span>
-                        </div>
-                    </div>
                     
                     <div class="timer-container" id="timer-container">
                         <div id="timer" class="timer-text">30</div>
@@ -148,6 +140,10 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                         <span class="score-label">Score</span>
                         <strong id="score" class="score-value">0</strong>
                         <div id="score-popup-container"></div>
+                    </div>
+                    <div class="coins-container">
+                        <span class="coins-icon" aria-hidden="true">🪙</span>
+                        <span id="coins-display" class="coins-value">0</span>
                     </div>
                     
                     <div class="best-score-container">
@@ -162,7 +158,7 @@ $firstLetter = strtoupper(substr($username, 0, 1));
 
                 <div class="game-card">
                     <div class="hearts-row">
-                        <span class="hearts-label">Attempts:</span>
+                        <span class="hearts-label">Hearts:</span>
                         <div id="hearts" class="hearts">
                             <span class="heart full" aria-hidden="true">❤️</span>
                             <span class="heart full" aria-hidden="true">❤️</span>
@@ -181,16 +177,20 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                         </select>
                     </div>
 
+                    <div id="celebration-container" class="celebration-container" aria-live="polite"></div>
                     <section id="puzzle-area">
                         <img id="puzzle-image" src="" alt="Banana Puzzle" class="loading" />
                         <form id="guess-form">
                             <input type="number" id="guess" min="0" max="9" placeholder="?" required autocomplete="off">
-                            <button type="submit" id="btn-submit">Submit</button>
+                            <button type="submit" id="btn-submit">🎯 Submit</button>
                             <button type="button" id="btn-hint" class="btn-hint" aria-label="Show Hint" title="Show Hint">💡</button>
                         </form>
-                        <div class="hint-counter">Hints remaining: <span id="hints-left-display">💡</span></div>
+                        <div class="hint-counter">
+                            Hints: <span id="hints-left-display">💡</span>
+                            <button id="btn-refill-hints" class="btn-icon-small" title="Refill hints with coins">Refill (5 🪙)</button>
+                        </div>
                         <p id="message"></p>
-                        <div id="explanation-panel" class="explanation-panel hidden">
+                        <div id="explanation-panel" class="explanation-panel glass-panel hidden">
                             <div class="explanation-content">
                                 <h4>Explanation 🤓</h4>
                                 <p id="explanation-text"></p>
@@ -208,15 +208,18 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                             <div class="monkey-wrapper">
                                 <span class="monkey-emoji">🐵</span>
                             </div>
-                            <p class="timeout-message">Time's up! The monkey ate your banana.<br>Answer was <strong id="timeout-answer">0</strong></p>
+                            <p class="timeout-message">
+                                Time’s up this round! 🌟<br>
+                                The answer was <strong id="timeout-answer">0</strong> – you can totally get the next one!
+                            </p>
                         </div>
                     </div>
                     
                     <div id="game-over-overlay" class="game-over-overlay hidden">
                         <div class="game-over-content">
-                            <h2>Game Over! 💔</h2>
-                            <p>You've run out of attempts.</p>
-                            <button id="restart-game-btn">Play Again</button>
+                            <h2>Oops! Try Again! 🙈</h2>
+                            <p>You used all your hearts this round. Want to try again?</p>
+                            <button id="restart-game-btn">Try Again! 🌟</button>
                         </div>
                     </div>
                 </div>
@@ -225,29 +228,28 @@ $firstLetter = strtoupper(substr($username, 0, 1));
             <!-- Dashboard / Sidebar -->
             <aside class="dashboard-sidebar">
                 <div class="dashboard">
-                    <h2 class="dashboard-title">Dashboard</h2>
-                    <p class="dashboard-subtitle">Your learning journey</p>
+                    <h2 class="dashboard-title">The Banana Game</h2>
                     
                     <div class="dashboard-grid" style="grid-template-columns: 1fr; gap: 16px;">
-                        <div class="dashboard-card">
-                            <div class="dashboard-stat-label">Your Best Score 🏆</div>
-                            <div id="dashboard-best-score" class="dashboard-stat-value">0</div>
+                        <div class="dashboard-card glass-panel">
+                            <div class="dashboard-stat-label">🌍 Global Top Score</div>
+                            <div id="dashboard-global-top-score" class="dashboard-stat-value">0</div>
+                            <div id="dashboard-global-top-user" class="dashboard-small-label"></div>
                         </div>
 
-                        <div class="dashboard-card mini-leaderboard-card">
-                            <div class="dashboard-stat-label">Global Top Score 🌍</div>
-                            <div id="dashboard-top-score" class="dashboard-stat-value">0</div>
-                            <div id="dashboard-top-user" class="top-user-label"></div>
+                        <div class="dashboard-card glass-panel">
+                            <div class="dashboard-stat-label">⭐ Your Best Score</div>
+                            <div id="dashboard-your-best-score" class="dashboard-stat-value">0</div>
                         </div>
 
-                        <div class="dashboard-card">
-                            <div class="dashboard-stat-label">Puzzles Attempted 🧩</div>
-                            <div id="dashboard-games-played" class="dashboard-stat-value" style="font-size: 28px;">0</div>
+                        <div class="dashboard-card glass-panel">
+                            <div class="dashboard-stat-label">🎯 Current Level Score</div>
+                            <div id="dashboard-current-level-score" class="dashboard-stat-value">0</div>
                         </div>
-                        
-                        <div class="dashboard-card performance-card" id="performance-card">
-                            <div class="dashboard-stat-label">Performance 📈</div>
-                            <div id="performance-indicator" class="performance-indicator performance-average">Average</div>
+
+                        <!-- Dashboard GIF Display (Fix 5) -->
+                        <div id="dashboard-gif-container" class="dashboard-gif-card glass-panel hidden">
+                            <div class="gif-wrapper"></div>
                         </div>
                     </div>
                 </div>
@@ -297,19 +299,12 @@ $firstLetter = strtoupper(substr($username, 0, 1));
             <h3 id="settings-title">Settings ⚙️</h3>
             <div class="settings-list">
                 <div class="setting-item">
-                    <label for="toggle-sound">Sound Effects</label>
-                    <input type="checkbox" id="toggle-sound" checked>
+                    <label for="toggle-sound">🔊 Sound</label>
+                    <input type="checkbox" id="toggle-sound">
                 </div>
                 <div class="setting-item">
-                    <label for="toggle-music">Background Music</label>
-                    <input type="checkbox" id="toggle-music">
-                </div>
-                <div class="setting-item">
-                    <label for="theme-selector">Theme</label>
-                    <select id="theme-selector">
-                        <option value="dark" selected>Dark Mode (Vibrant)</option>
-                        <option value="light">Light Mode</option>
-                    </select>
+                    <label for="toggle-dark-mode">🌙 Dark Mode</label>
+                    <input type="checkbox" id="toggle-dark-mode">
                 </div>
             </div>
             <div class="modal-actions">
@@ -318,7 +313,33 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <!-- Profile Slide-in Panel (added) -->
+    <!-- Pause Menu Overlay -->
+    <div id="pause-overlay" class="pause-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title" aria-hidden="true">
+        <div class="pause-backdrop" tabindex="-1"></div>
+        <div class="pause-card glass-panel">
+            <h3 id="pause-title">Paused</h3>
+            <div class="pause-actions">
+                <button type="button" id="btn-restart" class="btn-danger">Restart Game</button>
+                <button type="button" id="btn-resume" class="btn-primary">Resume Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Puzzle Hint Overlay (Fix 3) -->
+    <div id="puzzle-hint-overlay" class="puzzle-hint-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="puzzle-hint-title" aria-hidden="true">
+        <div class="puzzle-hint-backdrop" tabindex="-1"></div>
+        <div class="puzzle-hint-card glass-panel">
+            <h2 id="puzzle-hint-title">Solve the Puzzle to get your Hint!</h2>
+            <span class="puzzle-hint-emoji">🐒🤔</span>
+            <p id="puzzle-hint-question" class="puzzle-question"></p>
+            <input type="number" id="puzzle-hint-input" class="puzzle-input" min="0" placeholder="?">
+            <div class="puzzle-actions">
+                <button type="button" id="btn-puzzle-submit" class="btn-primary btn-puzzle-submit">Submit Answer</button>
+                <button type="button" id="btn-puzzle-cancel" class="btn-puzzle-cancel">Cancel</button>
+            </div>
+            <p id="puzzle-hint-message" class="modal-message"></p>
+        </div>
+    </div>
 
     <script src="frontend/js/game.js"></script>
 </body>
