@@ -81,6 +81,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </p>
         </div>
     </div>
-    <script src="/2541609_Game/frontend/js/signup.js"></script>
+    <script src="<?php echo $basePath; ?>frontend/js/signup.js"></script>
 </body>
 </html>

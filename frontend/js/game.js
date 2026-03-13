@@ -1,9 +1,14 @@
 const DIFFICULTY_TIMES = { easy: 45, medium: 30, hard: 18 };
 const MAX_LIVES = 5;
+const POINTS_TO_LEVEL = 10;
+const GAMES_TO_LEVEL = 10;
+const COINS_PER_LEVEL = 10;
+const HINT_REFILL_COST = 5;
 
-let score = 0;
+// totalScore tracks the overall run; levelScore tracks only the current level
+let score = 0; // total score across the session (kept for backend + stats)
+let coins = 0;
 let bestScore = 0;
-let streak = 0;
 let lives = MAX_LIVES;
 let gamesPlayed = 0;
 let topScore = 0;
@@ -15,8 +20,16 @@ let hints = 3; // hintsLeft
 let isPaused = false;
 let awaitingNextQuestion = false;
 let soundEnabled = localStorage.getItem('bananaSound') !== 'false';
-let musicEnabled = localStorage.getItem('bananaMusic') === 'true';
+let darkModeEnabled = localStorage.getItem('bananaDarkMode') !== 'false'; // default true
 let currentDifficulty = localStorage.getItem('bananaDifficulty') || 'medium';
+let currentLevel = 1;
+let roundsInLevel = 0;
+let pointsInLevel = 0; // score within the current level only
+
+// apply initial theme as early as possible
+if (typeof document !== 'undefined' && document.body) {
+    document.body.setAttribute('data-theme', darkModeEnabled ? 'dark' : 'light');
+}
 
 const difficultySelect = document.getElementById('difficulty');
 const guessForm = document.getElementById('guess-form');
@@ -58,39 +71,73 @@ function finishLoading() {
 }
 
 // ---------- Audio System ----------
-function playSound(type) {
-    if (!soundEnabled) return;
-    try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        if (type === 'tick') {
-            osc.frequency.setValueAtTime(800, ctx.currentTime);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-            osc.start(); osc.stop(ctx.currentTime + 0.1);
-        } else if (type === 'correct') {
-            osc.frequency.setValueAtTime(400, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.2);
-            gain.gain.setValueAtTime(0.2, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-            osc.start(); osc.stop(ctx.currentTime + 0.2);
-        } else if (type === 'wrong') {
-            osc.frequency.setValueAtTime(300, ctx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
-            gain.gain.setValueAtTime(0.2, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-            osc.start(); osc.stop(ctx.currentTime + 0.3);
-        } else if (type === 'hint') {
-            osc.frequency.setValueAtTime(600, ctx.currentTime);
-            gain.gain.setValueAtTime(0.1, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-            osc.start(); osc.stop(ctx.currentTime + 0.3);
+const AudioManager = (() => {
+    const base = 'assests/music/';
+    const sounds = {
+        music: new Audio(base + 'game music loop.mp3'),
+        congrats: new Audio(base + 'levelup congrats sound.mp3'),
+        coin: new Audio(base + 'coins sound.mp3'),
+        timewarn: new Audio(base + 'time counting sound.mp3'),
+        gameover: new Audio(base + 'game over sound.mp3'),
+        wrong: new Audio(base + 'heart break sound.mp3'),
+        correct: new Audio(base + 'nextgame sound.mp3'),
+        hint: new Audio(base + 'nextgame sound.mp3'),
+    };
+    let musicStarted = false;
+    sounds.music.loop = true;
+    Object.values(sounds).forEach(a => { a.preload = 'auto'; a.volume = 0.9; });
+
+    function canPlay() {
+        return soundEnabled;
+    }
+
+    function play(name) {
+        const a = sounds[name];
+        if (!a || !canPlay()) return;
+        if (name === 'music') {
+            musicStarted = true;
+            a.currentTime = 0;
+            a.play().catch(() => {});
+        } else {
+            a.currentTime = 0;
+            a.play().catch(() => {});
         }
-    } catch(e) {}
-}
+    }
+
+    function pauseMusic() {
+        sounds.music.pause();
+    }
+
+    function resumeMusic() {
+        if (!canPlay()) return;
+        musicStarted = true;
+        sounds.music.play().catch(() => {});
+    }
+
+    function stopMusic() {
+        sounds.music.pause();
+        sounds.music.currentTime = 0;
+    }
+
+    function maybeStartMusicFromUserGesture() {
+        if (!musicStarted && canPlay()) {
+            resumeMusic();
+        }
+    }
+
+    function applyGlobalMuteState() {
+        if (!soundEnabled) {
+            Object.values(sounds).forEach(a => {
+                a.pause();
+            });
+        } else if (musicStarted) {
+            // if re‑enabled and music was started before, resume background loop
+            resumeMusic();
+        }
+    }
+
+    return { play, pauseMusic, resumeMusic, stopMusic, maybeStartMusicFromUserGesture, applyGlobalMuteState };
+})();
 
 // ---------- Scores API ----------
 async function fetchScores() {
@@ -139,13 +186,15 @@ function updateScoresUI() {
     const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
     el('best-score', bestScore);
     el('top-score', topScore);
-    el('dashboard-best-score', bestScore);
-    el('dashboard-top-score', topScore);
-    el('dashboard-top-user', topUser ? `(${topUser})` : '');
-    el('dashboard-games-played', gamesPlayed);
+    el('dashboard-your-best-score', bestScore);
+    el('dashboard-global-top-score', topScore);
+    const topUserLabel = document.getElementById('dashboard-global-top-user');
+    if (topUserLabel) {
+        topUserLabel.textContent = topUser ? `by ${topUser}` : '';
+    }
     // profile panel quick sync (if open)
-    const sessionEl = document.getElementById('profile-session-score');
-    if (sessionEl) sessionEl.textContent = String(score);
+    const bestProfileEl = document.getElementById('profile-best-score');
+    if (bestProfileEl) bestProfileEl.textContent = String(bestScore);
 }
 
 // ---------- Hearts ----------
@@ -164,30 +213,57 @@ function loseLife() {
     updateHearts();
     if (lives <= 0) {
         showGameOver();
+    } else {
+        // Fix 5: Fail GIF on heart loss (not game over)
+        showGif('assests/src/Wrong Answer.gif', 1500, 'top');
     }
 }
 
 // ---------- Game Over ----------
 function showGameOver() {
+    AudioManager.play('gameover');
+    showGif('assests/src/Game Over.gif', 3000, 'center');
     const overlay = document.getElementById('game-over-overlay');
     if (overlay) overlay.classList.remove('hidden');
     if (guessForm) {
         guessForm.querySelector('input').disabled = true;
         guessForm.querySelector('button').disabled = true;
     }
+    AudioManager.stopMusic();
+    AudioManager.play('gameover');
     saveScore(score);
+}
+
+function updateCoinsDisplay() {
+    const el = document.getElementById('coins-display');
+    if (el) el.textContent = String(coins);
+    const profCoins = document.getElementById('profile-coins');
+    if (profCoins) profCoins.textContent = String(coins);
+}
+
+function showCelebrationBomb(level) {
+    const container = document.getElementById('celebration-container');
+    if (!container) return;
+    const bomb = document.createElement('div');
+    bomb.className = 'celebration-bomb';
+    bomb.innerHTML = `<span class="bomb-emoji">💥</span><span class="level-text">Level ${level} Complete!</span>`;
+    container.appendChild(bomb);
+    bomb.offsetHeight; // force reflow
+    bomb.classList.add('blast');
+    setTimeout(() => bomb.remove(), 1800);
 }
 
 function resetGame() {
     lives = MAX_LIVES;
     score = 0;
-    streak = 0;
+    coins = 0;
     hints = 3;
     awaitingNextQuestion = false;
     updateHearts();
-    document.getElementById('score').textContent = score;
+    pointsInLevel = 0;
+    const scoreEl = document.getElementById('score');
+    if (scoreEl) scoreEl.textContent = String(pointsInLevel);
     document.getElementById('best-score').textContent = bestScore;
-    updateStreak();
     if (typeof updateHintsDisplay === 'function') updateHintsDisplay();
     if (guessForm) {
         guessForm.querySelector('input').disabled = false;
@@ -204,34 +280,93 @@ function resetGame() {
     if (nextBtn) nextBtn.textContent = '🔄 New Game';
     const overlay = document.getElementById('game-over-overlay');
     if (overlay) overlay.classList.add('hidden');
+    updateCoinsDisplay();
     loadPuzzle();
 }
 
 // ---------- Dashboard & profile ----------
 function updateDashboard() {
-    const perfInd = document.getElementById('performance-indicator');
-    if (perfInd) {
-        perfInd.classList.remove('performance-good', 'performance-average', 'performance-poor');
-        let ratio = gamesPlayed === 0 ? 1 : score / gamesPlayed;
-        if (ratio >= 0.8) { perfInd.textContent = 'Excellent'; perfInd.classList.add('performance-good'); }
-        else if (ratio >= 0.4) { perfInd.textContent = 'Average'; perfInd.classList.add('performance-average'); }
-        else { perfInd.textContent = 'Needs Practice'; perfInd.classList.add('performance-poor'); }
-    }
+    // dashboard now only shows global top, personal best, and current level score
     updateScoresUI();
+    const levelScoreEl = document.getElementById('dashboard-current-level-score');
+    if (levelScoreEl) levelScoreEl.textContent = String(pointsInLevel);
     updateLevelBadge();
 }
 
 function updateLevelBadge() {
-    const lvl = Math.floor(score / 50) + 1;
+    const lvl = currentLevel;
     const badge = document.getElementById('level-badge');
-    const avatar = document.getElementById('player-avatar');
     if (badge) badge.textContent = `Lv.${lvl}`;
-    if (avatar) {
-        avatar.classList.remove('rank-beginner', 'rank-silver', 'rank-gold');
-        if (score >= 500) avatar.classList.add('rank-gold');
-        else if (score >= 200) avatar.classList.add('rank-silver');
-        else avatar.classList.add('rank-beginner');
+}
+
+function checkLevelProgress() {
+    if (roundsInLevel >= GAMES_TO_LEVEL || pointsInLevel >= POINTS_TO_LEVEL) {
+        levelUp();
     }
+}
+
+function levelUp({ byPurchase = false } = {}) {
+    if (!byPurchase) {
+        currentLevel++;
+        coins += COINS_PER_LEVEL;
+        AudioManager.play('coin');
+    } else {
+        currentLevel++;
+    }
+    
+    roundsInLevel = 0;
+    pointsInLevel = 0;
+    
+    updateLevelBadge();
+    updateCoinsDisplay();
+    
+    const levelScoreEl = document.getElementById('dashboard-current-level-score');
+    if (levelScoreEl) levelScoreEl.textContent = String(pointsInLevel);
+
+    AudioManager.play('congrats');
+    // Blast / Level Move GIF (Fix 5)
+    showGif('assests/src/Level Up Blast.gif', 1500, 'center');
+    setTimeout(() => {
+        // Winning / Level Up GIF (Fix 5)
+        showGif('assests/src/Celebration Panel.gif', 2500, 'center');
+        showLevelCelebrationPanel({ level: currentLevel, coinsAwarded: byPurchase ? 0 : COINS_PER_LEVEL });
+    }, 1500);
+}
+
+function showLevelCelebrationPanel({ level, coinsAwarded }) {
+    // Hide "Next Question" button if it was shown (Fix for hint auto-next)
+    const nextBtn = document.getElementById('new-game-btn');
+    if (nextBtn) nextBtn.classList.add('hidden');
+    
+    const panel = document.createElement('div');
+    panel.className = 'level-celebration-panel';
+    panel.innerHTML = `
+        <div class="level-celebration-card">
+          <h3>🎉 Congrats! Level Upgraded!</h3>
+          <p>You reached Level <strong>${level}</strong>${coinsAwarded ? ` and earned <strong>${coinsAwarded} 🪙</strong>` : ''}.</p>
+          <button id="btn-celebration-continue" class="btn-primary" style="width:100%;">Continue</button>
+        </div>
+    `;
+    document.body.appendChild(panel);
+    // confetti
+    for (let i = 0; i < 60; i++) {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + 'vw';
+        c.style.background = ['#ffd54f','#ff9f1c','#a855f7','#22c55e','#38bdf8'][Math.floor(Math.random()*5)];
+        c.style.animationDelay = (Math.random()*0.8)+'s';
+        panel.appendChild(c);
+    }
+    AudioManager.stopMusic();
+    AudioManager.play('congrats');
+    const btn = panel.querySelector('#btn-celebration-continue');
+    btn?.addEventListener('click', () => {
+        panel.remove();
+        if (soundEnabled) {
+            AudioManager.resumeMusic();
+        }
+        loadPuzzle();
+    });
 }
 
 function showScorePopup(points, isNegative = false) {
@@ -242,30 +377,6 @@ function showScorePopup(points, isNegative = false) {
     popup.textContent = (isNegative ? '' : '+') + points;
     container.appendChild(popup);
     setTimeout(() => popup.remove(), 1200);
-}
-
-function updateStreak() {
-    const el = document.getElementById('streak');
-    const streakIcon = document.querySelector('.streak-icon');
-    const multiplierEl = document.getElementById('streak-multiplier');
-    
-    if (el) el.textContent = streak;
-    if (streakIcon) {
-        if (streak >= 3) streakIcon.classList.add('active');
-        else streakIcon.classList.remove('active');
-    }
-    if (multiplierEl) {
-        if (streak >= 5) {
-            multiplierEl.textContent = 'x3';
-            multiplierEl.classList.remove('hidden');
-        } else if (streak >= 3) {
-            multiplierEl.textContent = 'x2';
-            multiplierEl.classList.remove('hidden');
-        } else {
-            multiplierEl.classList.add('hidden');
-        }
-    }
-    updateDashboard();
 }
 
 function updateDifficultyBadge() {
@@ -359,31 +470,25 @@ function closeInlineRename() {
     if (btnEdit) btnEdit.classList.remove('editing');
 }
 
-function getRankFromScore(s) {
-    if (s >= 600) return { name: 'Master', min: 600, max: null, colorClass: 'rank-master' };
-    if (s >= 300) return { name: 'Challenger', min: 300, max: 600, colorClass: 'rank-challenger' };
-    if (s >= 100) return { name: 'Explorer', min: 100, max: 300, colorClass: 'rank-explorer' };
-    return { name: 'Beginner', min: 0, max: 100, colorClass: 'rank-beginner' };
-}
-
-function setRankUI({ rankName, progressPct, progressText }) {
-    const badge = document.getElementById('profile-rank-badge');
-    const bar = document.getElementById('profile-rank-progress-bar');
-    const text = document.getElementById('profile-rank-progress-text');
-    if (badge) {
-        badge.textContent = rankName;
-        badge.classList.remove('rank-beginner', 'rank-explorer', 'rank-challenger', 'rank-master');
-        badge.classList.add(`rank-${rankName.toLowerCase()}`);
-    }
-    if (bar) bar.style.width = `${Math.max(0, Math.min(100, progressPct))}%`;
-    if (text) text.textContent = progressText;
-}
+// removed rank/tier system
 
 async function refreshProfilePanel() {
-    const sessionEl = document.getElementById('profile-session-score');
-    if (sessionEl) sessionEl.textContent = String(score);
+    const levelScoreEl = document.getElementById('dashboard-current-level-score');
+    const avatarImg = document.getElementById('profile-avatar-image');
+    if (avatarImg) {
+        const username = typeof window.BANANA_USERNAME === 'string' ? window.BANANA_USERNAME : 'player';
+        const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username)}`;
+        avatarImg.src = avatarUrl;
+        avatarImg.alt = 'Player Avatar';
+        avatarImg.width = 100;
+        avatarImg.height = 100;
+        avatarImg.onerror = function() {
+            this.src = 'assests/src/default-avatar.png';
+        };
+    }
+    if (levelScoreEl) levelScoreEl.textContent = String(pointsInLevel);
 
-    const statEls = ['profile-email', 'profile-join-date', 'profile-best-score', 'profile-games-played'];
+    const statEls = ['profile-best-score'];
     const currentUsername = typeof window.BANANA_USERNAME === 'string' ? window.BANANA_USERNAME : '';
     const usernameEl = document.getElementById('profile-username');
     if (usernameEl) usernameEl.textContent = currentUsername;
@@ -400,7 +505,7 @@ async function refreshProfilePanel() {
         const base = window.BANANA_BASE || '';
         const res = await fetch(base + 'Backend/profile_data.php', { headers: { 'Accept': 'application/json' } });
         const data = await res.json();
-        
+
         statEls.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.remove('skeleton');
@@ -412,43 +517,25 @@ async function refreshProfilePanel() {
         }
 
         const username = (data.username ?? currentUsername).toString();
-        const email = (data.email ?? '—').toString();
-        const joinDate = (data.join_date ?? '—').toString();
         const best = Number(data.best_score ?? 0);
-        const played = Number(data.games_played ?? 0);
 
         if (usernameEl) usernameEl.textContent = username;
-        const emailEl = document.getElementById('profile-email');
-        const joinEl = document.getElementById('profile-join-date');
         const bestEl = document.getElementById('profile-best-score');
-        const playedEl = document.getElementById('profile-games-played');
-        const avatarLetter = document.getElementById('profile-avatar-letter');
         const headerAvatarLetter = document.querySelector('#player-avatar .avatar-text');
 
-        if (emailEl) emailEl.textContent = email;
-        if (joinEl) joinEl.textContent = joinDate;
         if (bestEl) bestEl.textContent = String(best);
-        if (playedEl) playedEl.textContent = String(played);
 
         const first = (username || 'U').charAt(0).toUpperCase();
-        if (avatarLetter) avatarLetter.textContent = first;
         if (headerAvatarLetter) headerAvatarLetter.textContent = first;
-        
-        const lvl = Math.floor(best / 50) + 1;
-        const badge = document.getElementById('level-badge');
-        if (badge) badge.textContent = `Lv.${lvl}`;
 
-        const r = getRankFromScore(best);
-        let pct = 100;
-        let txt = '';
-        if (r.max === null) {
-            txt = `${best} / 600+`;
-        } else {
-            const span = r.max - r.min;
-            pct = span <= 0 ? 0 : ((best - r.min) / span) * 100;
-            txt = `${best} / ${r.max}`;
-        }
-        setRankUI({ rankName: r.name, progressPct: pct, progressText: txt });
+        updateProfileAvatar(username);
+
+        const badge = document.getElementById('level-badge');
+        if (badge) badge.textContent = `Lv.${currentLevel}`;
+        const profLevel = document.getElementById('profile-level');
+        const profCoins = document.getElementById('profile-coins');
+        if (profLevel) profLevel.textContent = String(currentLevel);
+        if (profCoins) profCoins.textContent = String(coins);
     } catch (err) {
         console.error('[Profile]', err);
         statEls.forEach(id => {
@@ -466,6 +553,21 @@ document.getElementById('btn-open-profile')?.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleProfileDropdown();
 });
+
+// Add CSS for avatar styling
+const avatarStyle = document.createElement('style');
+avatarStyle.textContent = `
+#profile-avatar-image {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid #FFD700;
+    object-fit: cover;
+    display: block;
+    margin: 0 auto;
+}
+`;
+document.head.appendChild(avatarStyle);
 document.getElementById('btn-open-profile')?.addEventListener('keydown', (e) => {
     const k = e.key;
     if (k === 'Enter' || k === ' ') {
@@ -545,17 +647,20 @@ if (sndToggle instanceof HTMLInputElement) {
     sndToggle.addEventListener('change', () => {
         soundEnabled = sndToggle.checked;
         localStorage.setItem('bananaSound', soundEnabled ? 'true' : 'false');
+        AudioManager.applyGlobalMuteState();
     });
 }
 
-const themeSelect = document.getElementById('theme-selector');
-if (themeSelect instanceof HTMLSelectElement) {
-    const savedTheme = localStorage.getItem('bananaTheme') || 'dark';
-    themeSelect.value = savedTheme;
-    document.body.setAttribute('data-theme', savedTheme);
-    themeSelect.addEventListener('change', () => {
-        document.body.setAttribute('data-theme', themeSelect.value);
-        localStorage.setItem('bananaTheme', themeSelect.value);
+const darkToggle = document.getElementById('toggle-dark-mode');
+    if (darkToggle instanceof HTMLInputElement) {
+    darkToggle.checked = darkModeEnabled;
+    document.body.setAttribute('data-theme', darkModeEnabled ? 'dark' : 'light');
+    darkToggle.addEventListener('change', () => {
+        darkModeEnabled = darkToggle.checked;
+        document.body.setAttribute('data-theme', darkModeEnabled ? 'dark' : 'light');
+        localStorage.setItem('bananaDarkMode', darkModeEnabled ? 'true' : 'false');
+        // Fix 2: Sync across all panels instantly
+        localStorage.setItem('darkMode', darkModeEnabled ? 'true' : 'false');
     });
 }
 
@@ -584,16 +689,16 @@ document.getElementById('btn-inline-save-rename')?.addEventListener('click', asy
     e.preventDefault();
     const btn = e.target;
     const prevText = btn.textContent;
-    
+
     const name = (inlineNewUsernameInput instanceof HTMLInputElement ? inlineNewUsernameInput.value.trim() : '');
     if (!name || name.length < 2) {
         if (inlineRenameMessage) {
             inlineRenameMessage.textContent = 'Username must be at least 2 characters';
-            inlineRenameMessage.style.color = '#ef4444'; 
+            inlineRenameMessage.style.color = '#ef4444';
         }
         return;
     }
-    
+
     btn.textContent = 'Saving...';
     btn.disabled = true;
 
@@ -605,7 +710,7 @@ document.getElementById('btn-inline-save-rename')?.addEventListener('click', asy
             body: JSON.stringify({ username: name }),
         });
         const data = await res.json();
-        
+
         btn.textContent = prevText;
         btn.disabled = false;
 
@@ -613,15 +718,18 @@ document.getElementById('btn-inline-save-rename')?.addEventListener('click', asy
             window.BANANA_USERNAME = data.username;
             const headerLetter = document.querySelector('#player-avatar .avatar-text');
             if (headerLetter) headerLetter.textContent = data.username.charAt(0).toUpperCase();
-            
+
             if (inlineRenameMessage) {
                 inlineRenameMessage.textContent = '✓ Username updated!';
                 inlineRenameMessage.style.color = '#22c55e';
             }
-            
+
             const usernameEl = document.getElementById('profile-username');
             if (usernameEl) usernameEl.textContent = data.username;
-            
+
+            // refresh DiceBear avatar when username changes
+            updateProfileAvatar(data.username);
+
             setTimeout(closeInlineRename, 1500);
         } else {
             if (inlineRenameMessage) {
@@ -653,6 +761,33 @@ document.getElementById('btn-share-profile')?.addEventListener('click', () => {
     }
 });
 
+// Upgrade level via coins
+document.getElementById('btn-upgrade-level')?.addEventListener('click', () => {
+    const msgEl = document.getElementById('profile-upgrade-message');
+    if (coins < COINS_PER_LEVEL) {
+        if (msgEl) {
+            msgEl.textContent = '❌ Not enough coins! Earn more coins to upgrade.';
+            msgEl.className = 'profile-upgrade-message profile-upgrade-message--error';
+            setTimeout(() => {
+                msgEl.textContent = '';
+                msgEl.className = 'profile-upgrade-message';
+            }, 3000);
+        }
+        return;
+    }
+    coins -= COINS_PER_LEVEL;
+    updateCoinsDisplay();
+    levelUp({ byPurchase: true });
+    if (msgEl) {
+        msgEl.textContent = `✅ Level Upgraded! You are now Level ${currentLevel}.`;
+        msgEl.className = 'profile-upgrade-message profile-upgrade-message--success';
+        setTimeout(() => {
+            msgEl.textContent = '';
+            msgEl.className = 'profile-upgrade-message';
+        }, 3000);
+    }
+});
+
 // ---------- Timer ----------
 function startTimer({ resume = false } = {}) {
     if (timer) clearInterval(timer);
@@ -663,9 +798,9 @@ function startTimer({ resume = false } = {}) {
     timer = setInterval(() => {
         timeLeft--;
         updateTimer();
-        if (timeLeft <= 5) {
+        if (timeLeft === 10) {
             if (timerEl) timerEl.classList.add('urgent');
-            playSound('tick');
+            AudioManager.play('timewarn');
         }
         if (timeLeft <= 0) {
             clearInterval(timer);
@@ -700,6 +835,7 @@ function pauseGame() {
     document.getElementById('pause-overlay')?.classList.remove('hidden');
     const btn = document.getElementById('btn-pause');
     if (btn) btn.textContent = '▶️';
+    AudioManager.pauseMusic();
 }
 
 function resumeGame() {
@@ -710,10 +846,19 @@ function resumeGame() {
     if (btn) btn.textContent = '⏸️';
     // resume from remaining timeLeft
     startTimer({ resume: true });
+    AudioManager.resumeMusic();
 }
 
 document.getElementById('btn-pause')?.addEventListener('click', pauseGame);
 document.getElementById('btn-resume')?.addEventListener('click', resumeGame);
+document.getElementById('btn-restart')?.addEventListener('click', () => {
+    document.getElementById('pause-overlay')?.classList.add('hidden');
+    isPaused = false;
+    if (soundEnabled) {
+        AudioManager.resumeMusic();
+    }
+    resetGame();
+});
 
 // ---------- Timeout overlay ----------
 function showTimeoutAnimation() {
@@ -731,6 +876,8 @@ function showTimeoutAnimation() {
 
     loseLife();
     gamesPlayed++;
+    roundsInLevel++;
+    checkLevelProgress();
     saveScore(score);
     updateDashboard();
 
@@ -744,8 +891,6 @@ function showTimeoutAnimation() {
     setTimeout(() => {
         if (overlay) overlay.classList.add('hidden');
         if (lives > 0) {
-            streak = 0;
-            updateStreak();
             if (guessForm) {
                 guessForm.querySelector('input').disabled = false;
                 guessForm.querySelector('button').disabled = false;
@@ -756,6 +901,8 @@ function showTimeoutAnimation() {
 }
 
 function handleTimeUp() {
+    AudioManager.play('wrong');
+    showGif('assests/src/Wrong Answer.gif', 1500, 'top');
     showTimeoutAnimation();
 }
 
@@ -769,16 +916,19 @@ async function loadPuzzle() {
         msgEl.className = '';
     }
     try {
-        const response = await fetch('https://marcconrad.com/uob/banana/api.php?out=csv&base64=yes');
+        // Use backend proxy endpoint to avoid browser CORS issues with the external Banana API
+        const response = await fetch('api/banana.php');
         const data = await response.text();
         const parts = data.split(',');
         if (parts.length >= 2) {
             imgEl.src = 'data:image/png;base64,' + parts[0];
             solution = parseInt(parts[1]);
-            imgEl.onload = function() {
+                imgEl.onload = function() {
                 imgEl.classList.remove('loading');
                 if (msgEl) msgEl.textContent = '';
-                startTimer({ resume: false });
+                    startTimer({ resume: false });
+                    // respect autoplay policy: only (re)start music after user interaction
+                    AudioManager.maybeStartMusicFromUserGesture();
             };
             imgEl.onerror = function() {
                 if (msgEl) {
@@ -810,51 +960,55 @@ guessForm?.addEventListener('submit', function(e) {
     if (guessInput) guessInput.disabled = false;
     const submitBtn = document.getElementById('btn-submit');
     if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false;
-    
+
     // Button press animation
     const btn = document.getElementById('btn-submit');
     if (btn) { btn.classList.add('btn-press'); setTimeout(() => btn.classList.remove('btn-press'), 150); }
+    AudioManager.maybeStartMusicFromUserGesture();
 
     clearInterval(timer);
     const guess = parseInt(guessInput?.value);
-    
+
     // Hide explanation
-    const expPanel = document.getElementById('explanation-panel');
-    if (expPanel) expPanel.classList.add('hidden');
+    // const expPanel = document.getElementById('explanation-panel');
+    // if (expPanel) expPanel.classList.add('hidden');
     document.getElementById('puzzle-image')?.classList.remove('correct-highlight');
 
     if (guess === solution) {
-        playSound('correct');
-        const points = (streak >= 5) ? 3 : ((streak >= 3) ? 2 : 1);
+        AudioManager.play('correct');
+        // Correct Answer GIF (Fix 5)
+        showGif('assests/src/Correct Answer.gif', 1000, 'answer-area');
+        const points = 1;
         score += points;
-        streak++;
+        pointsInLevel += points;
+        roundsInLevel += 1;
         showScorePopup(points);
-        if (streak >= 3 && timeLeft < DIFFICULTY_TIMES[currentDifficulty]) {
-            timeLeft = Math.min(DIFFICULTY_TIMES[currentDifficulty], timeLeft + 5);
-        }
         const msgEl = document.getElementById('message');
         if (msgEl) {
             msgEl.textContent = '✅ Correct! New puzzle loaded.';
             msgEl.className = 'success';
         }
-        document.getElementById('score').textContent = score;
+        const scoreEl = document.getElementById('score');
+        if (scoreEl) scoreEl.textContent = String(pointsInLevel);
         if (score > bestScore) bestScore = score;
         updateScoresUI();
-        updateStreak();
         gamesPlayed++;
+        checkLevelProgress();
         saveScore(score);
         updateDashboard();
         setTimeout(loadPuzzle, 1500);
     } else {
-        playSound('wrong');
+        AudioManager.play('wrong');
+        // Fail GIF (Fix 5)
+        showGif('assests/src/Wrong Answer.gif', 1500, 'top');
         loseLife();
-        streak = 0;
+        roundsInLevel += 1;
         const msgEl = document.getElementById('message');
         if (msgEl) {
             msgEl.textContent = `❌ Wrong! Answer was ${solution}`;
             msgEl.className = 'error';
         }
-        updateStreak();
+        checkLevelProgress();
         gamesPlayed++;
         saveScore(score);
         updateDashboard();
@@ -869,7 +1023,7 @@ guessForm?.addEventListener('submit', function(e) {
 function applyHint() {
     if (isPaused) return;
     if (hints <= 0) {
-        showMessage('No hints remaining! 💡', 'warning');
+        showMessage('No hints left. Use Refill to buy more with coins.', 'warning');
         return;
     }
     if (solution === null || Number.isNaN(Number(solution))) {
@@ -877,15 +1031,11 @@ function applyHint() {
         return;
     }
 
-    // apply penalties
+    // consume a hint without penalties
     hints = Math.max(0, hints - 1);
-    score = Math.max(0, score - 10);
-    loseLife();
-    playSound('hint');
-    showScorePopup(10, true);
+    AudioManager.play('hint');
 
     // update UI
-    document.getElementById('score').textContent = String(score);
     updateHintsDisplay();
 
     const hintBtn = document.getElementById('btn-hint');
@@ -921,10 +1071,6 @@ function applyHint() {
     awaitingNextQuestion = true;
 }
 
-document.getElementById('btn-hint')?.addEventListener('click', () => {
-    if (isPaused) return;
-    applyHint();
-});
 
 
 function updateHintsDisplay() {
@@ -936,6 +1082,23 @@ function updateHintsDisplay() {
         else disp.textContent = '⬜⬜⬜';
     }
 }
+
+// Refill hints using coins
+document.getElementById('btn-refill-hints')?.addEventListener('click', () => {
+    if (hints >= 3) {
+        showMessage('Hints already full.', 'info');
+        return;
+    }
+    if (coins < HINT_REFILL_COST) {
+        showMessage('Not enough coins to refill hints.', 'error');
+        return;
+    }
+    coins -= HINT_REFILL_COST;
+    hints = 3;
+    updateCoinsDisplay();
+    updateHintsDisplay();
+    AudioManager.play('coin');
+});
 
 // ---------- Keyboard shortcuts ----------
 document.addEventListener('keydown', (e) => {
@@ -952,35 +1115,36 @@ difficultySelect?.addEventListener('change', function() {
 });
 
 document.getElementById('new-game-btn')?.addEventListener('click', function() {
+    if (isPaused) return;
     if (awaitingNextQuestion) {
         awaitingNextQuestion = false;
-        // restore input/buttons for next puzzle (keep score/lives)
-        if (guessInput) {
-            guessInput.disabled = false;
-            guessInput.classList.remove('hint-revealed');
-            guessInput.value = '';
-        }
-        const submitBtn = document.getElementById('btn-submit');
-        if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false;
-        const expPanel = document.getElementById('explanation-panel');
-        if (expPanel) expPanel.classList.add('hidden');
         this.textContent = '🔄 New Game';
         loadPuzzle();
-        return;
+    } else {
+        // If not awaiting, it acts as a manual skip or restart round
+        loadPuzzle();
     }
-    resetGame();
 });
 
 // ---------- Init ----------
 function initGame() {
+    // Initial theme sync (Fix 2)
+    const storedTheme = localStorage.getItem('bananaDarkMode');
+    if (storedTheme !== null) {
+        darkModeEnabled = storedTheme === 'true';
+        document.body.setAttribute('data-theme', darkModeEnabled ? 'dark' : 'light');
+    }
+
     if (difficultySelect) {
         difficultySelect.value = currentDifficulty;
         updateDifficultyBadge();
     }
+    // background music will be started on first user interaction to respect autoplay policies
     updateHintsDisplay();
     const hintBtn = document.getElementById('btn-hint');
     if (hintBtn instanceof HTMLButtonElement) hintBtn.disabled = hints <= 0;
     updateHearts();
+    updateCoinsDisplay();
     fetchScores().then(() => {
         updateScoresUI();
         updateDashboard();
@@ -993,4 +1157,188 @@ if (loadingScreen && appContent) {
     runLoadingSequence();
 } else {
     initGame();
+}
+
+// ---------- Interactive Puzzle Hint (Fix 3) ----------
+// ---------- Interactive Puzzle Hint (Fix 3) ----------
+const PuzzleHintSystem = (() => {
+    const questions = [
+        { q: "🌙 How many moons does Earth have?", a: 1 },
+        { q: "👀 How many eyes does a human have?", a: 2 },
+        { q: "🚦 How many colors are on a traffic light?", a: 3 },
+        { q: "🐕 How many legs does a dog have?", a: 4 },
+        { q: "✋ How many fingers are on one hand?", a: 5 },
+        { q: "📅 Which number month is June?", a: 6 },
+        { q: "🌈 How many colors are in a rainbow?", a: 7 },
+        { q: "🕷️ How many legs does a spider have?", a: 8 },
+        { q: "🪐 How many planets are in the solar system?", a: 9 },
+        { q: "🐝 How many wings does a bee have?", a: 4 },
+        { q: "🎲 How many sides does a dice have?", a: 6 },
+        { q: "🌍 How many continents are on Earth?", a: 7 },
+        { q: "🐙 How many arms does an octopus have?", a: 8 },
+        { q: "🎵 How many notes are in a musical scale?", a: 7 },
+        { q: "🍀 How many leaves does a lucky clover have?", a: 4 }
+    ];
+
+    let lastThree = [];
+    let currentQuestion = null;
+    let wasTimerRunning = false;
+
+    function getElements() {
+        return {
+            overlay: document.getElementById('puzzle-hint-overlay'),
+            questionEl: document.getElementById('puzzle-hint-question'),
+            inputEl: document.getElementById('puzzle-hint-input'),
+            messageEl: document.getElementById('puzzle-hint-message'),
+            submitBtn: document.getElementById('btn-puzzle-submit'),
+            cancelBtn: document.getElementById('btn-puzzle-cancel')
+        };
+    }
+
+    function open() {
+        if (isPaused) return;
+        if (hints <= 0) {
+            showMessage('No hints left. Use Refill to buy more with coins.', 'warning');
+            return;
+        }
+        
+        // Use global solution from game.js
+        if (typeof solution === 'undefined' || solution === null || Number.isNaN(Number(solution))) {
+            showMessage('Wait for the puzzle to load first!', 'error');
+            return;
+        }
+
+        // Pause timer while puzzle is open
+        if (timer) {
+            clearInterval(timer);
+            timer = null;
+            wasTimerRunning = true;
+        } else {
+            wasTimerRunning = false;
+        }
+        
+        const els = getElements();
+        if (!els.overlay) {
+            console.error('Puzzle hint overlay not found!');
+            return;
+        }
+
+        const available = questions.filter(q => !lastThree.includes(q.q));
+        currentQuestion = available[Math.floor(Math.random() * available.length)];
+        
+        lastThree.push(currentQuestion.q);
+        if (lastThree.length > 3) lastThree.shift();
+
+        if (els.questionEl) els.questionEl.textContent = currentQuestion.q;
+        if (els.inputEl) {
+            els.inputEl.value = '';
+            els.inputEl.disabled = false;
+        }
+        if (els.messageEl) els.messageEl.textContent = '';
+        if (els.submitBtn) els.submitBtn.disabled = false;
+        if (els.cancelBtn) els.cancelBtn.disabled = false;
+        
+        els.overlay.classList.remove('hidden');
+        els.inputEl?.focus();
+
+        // Consume hint immediately upon opening the puzzle (one chance)
+        consumeHint();
+
+        // Re-bind events to current elements just in case
+        if (els.submitBtn) els.submitBtn.onclick = check;
+        if (els.cancelBtn) els.cancelBtn.onclick = close;
+        if (els.inputEl) els.inputEl.onkeydown = (e) => { if (e.key === 'Enter') check(); };
+    }
+
+    function close() {
+        getElements().overlay?.classList.add('hidden');
+        // Resume timer if it was running before
+        if (wasTimerRunning && !isPaused) {
+            startTimer({ resume: true });
+        }
+    }
+
+    function check() {
+        const els = getElements();
+        const val = parseInt(els.inputEl?.value);
+        
+        // Disable input/buttons to prevent multiple clicks during the "one chance" window
+        if (els.inputEl) els.inputEl.disabled = true;
+        if (els.submitBtn) els.submitBtn.disabled = true;
+        if (els.cancelBtn) els.cancelBtn.disabled = true;
+
+        if (val === currentQuestion.a) {
+            AudioManager.play('correct');
+            if (els.messageEl) {
+                els.messageEl.style.color = '#22c55e';
+                els.messageEl.textContent = "🎉 Correct! Moving to next game...";
+            }
+            setTimeout(() => {
+                // Re-enable elements before closing/next use
+                if (els.inputEl) els.inputEl.disabled = false;
+                if (els.submitBtn) els.submitBtn.disabled = false;
+                if (els.cancelBtn) els.cancelBtn.disabled = false;
+                
+                close();
+                loadPuzzle();
+            }, 1500);
+        } else {
+            AudioManager.play('wrong');
+            if (els.messageEl) {
+                els.messageEl.style.color = '#ef4444';
+                els.messageEl.textContent = "Oops! Wrong answer. Returning to game... 🐒";
+            }
+            setTimeout(() => {
+                // Re-enable elements for next time before closing
+                if (els.inputEl) els.inputEl.disabled = false;
+                if (els.submitBtn) els.submitBtn.disabled = false;
+                if (els.cancelBtn) els.cancelBtn.disabled = false;
+                
+                close();
+            }, 2000);
+        }
+    }
+
+    return { open };
+})();
+
+function consumeHint() {
+    if (hints > 0) {
+        hints--;
+        updateHintsDisplay();
+        AudioManager.play('hint');
+        const hintBtn = document.getElementById('btn-hint');
+        if (hintBtn instanceof HTMLButtonElement && hints <= 0) {
+            hintBtn.disabled = true;
+            hintBtn.classList.add('disabled');
+        }
+    }
+}
+
+document.getElementById('btn-hint')?.addEventListener('click', () => {
+    PuzzleHintSystem.open();
+});
+
+// ---------- GIF Animation System (Fix 5) ----------
+let currentGifTimeout = null;
+function showGif(gifPath, duration) {
+    const container = document.getElementById('dashboard-gif-container');
+    const wrapper = container?.querySelector('.gif-wrapper');
+    if (!container || !wrapper) return;
+
+    // Clear previous
+    if (currentGifTimeout) clearTimeout(currentGifTimeout);
+    wrapper.innerHTML = '';
+
+    const img = document.createElement('img');
+    img.src = gifPath + '?t=' + Date.now();
+    
+    wrapper.appendChild(img);
+    container.classList.remove('hidden');
+
+    currentGifTimeout = setTimeout(() => {
+        container.classList.add('hidden');
+        wrapper.innerHTML = '';
+        currentGifTimeout = null;
+    }, duration);
 }
