@@ -23,7 +23,6 @@ try {
     $pdo = pdoConnect();
     $userId = (int)$_SESSION['user_id'];
     
-    // Attempt to grab generic user info
     $stmt = $pdo->prepare('SELECT id, username, email, created_at FROM users WHERE id = ?');
     $stmt->execute([$userId]);
     $userEntry = $stmt->fetch();
@@ -36,7 +35,6 @@ try {
     $bestScore = 0;
     $gamesPlayed = 0;
 
-    // Check if user_scores exists to get stats safely
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_scores'");
     $stmt->execute();
     $hasUserScores = (int)$stmt->fetchColumn() > 0;

@@ -1,5 +1,3 @@
-// auth/login.js
-// client-side validation and dynamic loading on submit
 
 window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('auth-form');
@@ -20,8 +18,7 @@ window.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Dynamic loading screen while submitting
-        e.preventDefault(); // Pause submission
+        e.preventDefault(); 
         
         const authShell = document.querySelector('.auth-shell');
         const loadingScreen = document.getElementById('loading-screen');
@@ -48,12 +45,11 @@ window.addEventListener('DOMContentLoaded', () => {
                     i++;
                     setTimeout(tick, 400);
                 } else {
-                    form.submit(); // Actually submit the form
+                    form.submit(); 
                 }
             };
             setTimeout(tick, 300);
         } else {
-            // Fallback if elements not found
             const btn = form.querySelector('button[type=submit]');
             if (btn) {
                 btn.disabled = true;

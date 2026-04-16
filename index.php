@@ -1,7 +1,7 @@
 <?php
 session_start();
-// determine base path dynamically (used for redirects)
-$basePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . "/"; // e.g. '/2541609_Game'
+
+$basePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . "/"; 
 if ($basePath === '/') {
     $basePath = '/';
 }
@@ -18,7 +18,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Banana Game</title>
-    <!-- Kid-friendly rounded fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="frontend/styles/style.css?v=<?php echo @filemtime(__DIR__ . '/frontend/styles/style.css'); ?>">
     <script>
@@ -58,7 +57,7 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                         </div>
                     </button>
                     
-                    <!-- Profile Dropdown Modal -->
+                    <!-- Profile-->
                     <div id="profile-panel" class="profile-dropdown glass-panel" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="profile-panel-title">
                         <div class="profile-panel-card glass-panel">
                             <div class="profile-panel-header">
@@ -118,12 +117,10 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                         </div>
                     </div>
                 </div>
-                <!-- logout link included as href fallback -->
                 <a href="<?php echo $basePath; ?>Backend/auth/logout.php" id="btn-logout-icon" class="btn-logout-icon" aria-label="Logout" title="Logout">⏻</a>
             </div>
         </header>
 
-        <!-- Main Layout (Game Left, Dashboard Right) -->
         <div class="app-layout">
             <main id="game" class="game-section">
                 
@@ -222,7 +219,7 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                 </div>
             </main>
 
-            <!-- Dashboard / Sidebar -->
+            <!-- Dashboard -->
             <aside class="dashboard-sidebar">
                 <div class="dashboard">
                     <h2 class="dashboard-title">The Banana Game</h2>
@@ -244,7 +241,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                             <div id="dashboard-current-level-score" class="dashboard-stat-value">0</div>
                         </div>
 
-                        <!-- Dashboard GIF Display (Fix 5) -->
                         <div id="dashboard-gif-container" class="dashboard-gif-card glass-panel hidden">
                             <div class="gif-wrapper"></div>
                         </div>
@@ -254,9 +250,7 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <!-- Modals & Overlays -->
 
-    <!-- Edit Name Modal (renamed slightly to fit new structure or kept as is) -->
     <div id="change-name-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="change-name-title" aria-hidden="true">
         <div class="modal-backdrop" tabindex="-1"></div>
         <div class="modal-content">
@@ -273,7 +267,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <!-- Logout Confirmation Modal -->
     <div id="logout-confirm-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="logout-title" aria-hidden="true">
         <div class="modal-backdrop" tabindex="-1"></div>
         <div class="modal-content text-center">
@@ -288,7 +281,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
     </div>
     
 
-    <!-- Settings Modal -->
     <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true">
         <div class="modal-backdrop" tabindex="-1"></div>
         <div class="modal-content">
@@ -310,7 +302,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <!-- Pause Menu Overlay -->
     <div id="pause-overlay" class="pause-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title" aria-hidden="true">
         <div class="pause-backdrop" tabindex="-1"></div>
         <div class="pause-card glass-panel">
@@ -322,7 +313,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <!-- Puzzle Hint Overlay (Fix 3) -->
     <div id="puzzle-hint-overlay" class="puzzle-hint-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="puzzle-hint-title" aria-hidden="true">
         <div class="puzzle-hint-backdrop" tabindex="-1"></div>
         <div class="puzzle-hint-card glass-panel">
@@ -338,7 +328,6 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <!-- Players History Modal -->
     <div id="players-history-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="players-history-title" aria-hidden="true">
         <div class="modal-backdrop" tabindex="-1"></div>
         <div class="modal-content modal-content--large">

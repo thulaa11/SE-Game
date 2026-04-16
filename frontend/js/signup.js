@@ -1,4 +1,3 @@
-// auth/signup.js
 window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('auth-form');
     if (!form) return;

@@ -1,6 +1,5 @@
 <?php
 session_start();
-// database connection helper
 require_once __DIR__ . '/../Backend/db/db.php';
 
 header('Content-Type: application/json');
@@ -28,7 +27,6 @@ if ($newUsername === $_SESSION['username']) {
     exit;
 }
 
-// Check availability
 $stmt = $conn->prepare('SELECT id FROM users WHERE username = ?');
 $stmt->bind_param('s', $newUsername);
 $stmt->execute();
@@ -38,7 +36,6 @@ if ($stmt->num_rows > 0) {
     exit;
 }
 
-// Update users table
 $stmt = $conn->prepare('UPDATE users SET username = ? WHERE id = ?');
 $stmt->bind_param('si', $newUsername, $_SESSION['user_id']);
 if (!$stmt->execute()) {
@@ -46,7 +43,6 @@ if (!$stmt->execute()) {
     exit;
 }
 
-// Update user_scores table
 $stmt = $conn->prepare('UPDATE user_scores SET username = ? WHERE user_id = ?');
 $stmt->bind_param('si', $newUsername, $_SESSION['user_id']);
 $stmt->execute();
