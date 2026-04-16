@@ -896,16 +896,16 @@ body.modal-open {
 }
 
 .auth-shell {
-    padding: 20px;
+    padding: 14px;
     width: 100%;
-    max-width: 440px;
+    max-width: 380px;
     box-sizing: border-box;
 }
 
 .auth-card {
     background: var(--surface-solid);
     border-radius: var(--radius-lg);
-    padding: 40px;
+    padding: 28px;
     box-shadow: var(--shadow-lg);
     text-align: left;
     border: 1px solid rgba(255,255,255,0.9);
@@ -913,29 +913,86 @@ body.modal-open {
 
 .auth-title {
     margin: 0 0 8px;
-    font-size: 28px;
+    font-size: 24px;
     color: var(--text-dark);
 }
 
+.auth-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #7c2d12;
+    background: linear-gradient(135deg, #fef08a, #fdba74);
+    padding: 8px 12px;
+    border-radius: 999px;
+    margin-bottom: 14px;
+}
+
 .auth-subtitle {
-    margin: 0 0 32px;
-    font-size: 16px;
+    margin: 0 0 22px;
+    font-size: 14px;
     color: var(--text-muted);
+}
+
+.auth-message {
+    margin: 0 0 16px;
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-weight: 700;
 }
 
 .auth-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
+}
+
+.auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.auth-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.auth-password-wrap {
+    position: relative;
+}
+
+.auth-toggle-pass {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 4px;
+}
+
+.auth-inline-error {
+    min-height: 20px;
+    margin: 0;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 .auth-form input {
     width: 100%;
     background: #F8F9FA;
     border: 2px solid transparent;
-    padding: 14px 16px;
+    padding: 11px 13px;
     border-radius: var(--radius-md);
-    font-size: 16px;
+    font-size: 14px;
     color: var(--text-dark);
     box-sizing: border-box;
 }
@@ -948,10 +1005,11 @@ body.modal-open {
 .auth-form button {
     margin-top: 8px;
     width: 100%;
-    padding: 14px;
-    font-size: 16px;
+    min-height: 46px;
+    padding: 10px;
+    font-size: 15px;
     border-radius: var(--radius-md);
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -2222,4 +2280,144 @@ body::before {
     max-height: 160px;
     object-fit: contain;
     border-radius: 12px;
+}
+
+/* ---------- Players History Modal ---------- */
+.modal-content--large {
+    max-width: 900px;
+    width: 95vw;
+    max-height: 85vh;
+}
+
+.players-history-panels-container {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin: 20px 0;
+    padding: 10px;
+}
+
+.player-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.player-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    border-color: #4ade80;
+}
+
+.player-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f3f4f6;
+}
+
+.player-rank {
+    font-size: 28px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.player-rank span {
+    font-size: 24px;
+}
+
+.player-username {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.player-joined {
+    font-size: 13px;
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+.difficulty-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.difficulty-card {
+    background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    transition: all 0.2s;
+}
+
+.difficulty-card:hover {
+    transform: scale(1.03);
+}
+
+.difficulty-card.easy {
+    border: 2px solid #4ade80;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+}
+
+.difficulty-card.medium {
+    border: 2px solid #fbbf24;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+}
+
+.difficulty-card.hard {
+    border: 2px solid #f87171;
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+}
+
+.difficulty-name {
+    font-size: 16px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.difficulty-card.easy .difficulty-name {
+    color: #16a34a;
+}
+
+.difficulty-card.medium .difficulty-name {
+    color: #d97706;
+}
+
+.difficulty-card.hard .difficulty-name {
+    color: #dc2626;
+}
+
+.difficulty-score {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 8px;
+}
+
+.difficulty-card.easy .difficulty-score {
+    color: #15803d;
+}
+
+.difficulty-card.medium .difficulty-score {
+    color: #b45309;
+}
+
+.difficulty-card.hard .difficulty-score {
+    color: #b91c1c;
+}
+
+.difficulty-games {
+    font-size: 13px;
+    color: #6b7280;
+    font-weight: 600;
 }

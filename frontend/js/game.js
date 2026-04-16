@@ -19,12 +19,41 @@ let timeLeft = 30;
 let hints = 3; // hintsLeft
 let isPaused = false;
 let awaitingNextQuestion = false;
+let overlayFreezeCount = 0;
 let soundEnabled = localStorage.getItem('bananaSound') !== 'false';
 let darkModeEnabled = localStorage.getItem('bananaDarkMode') !== 'false'; // default true
 let currentDifficulty = localStorage.getItem('bananaDifficulty') || 'medium';
 let currentLevel = 1;
 let roundsInLevel = 0;
 let pointsInLevel = 0; // score within the current level only
+
+function loadStoredCoins() {
+    const raw = localStorage.getItem('bananaCoins');
+    const parsed = Number.parseInt(raw ?? '', 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function persistCoins() {
+    localStorage.setItem('bananaCoins', String(Math.max(0, coins)));
+}
+
+function getLevelFromScore(scoreValue) {
+    return Math.max(1, Math.floor((Number(scoreValue) || 0) / POINTS_TO_LEVEL) + 1);
+}
+
+function getStoredLevel() {
+    const raw = localStorage.getItem('bananaCurrentLevel');
+    const parsed = Number.parseInt(raw ?? '', 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function persistCurrentLevel() {
+    localStorage.setItem('bananaCurrentLevel', String(currentLevel));
+}
+
+function getCanonicalLevel() {
+    return Math.max(1, currentLevel, getStoredLevel(), getLevelFromScore(bestScore));
+}
 
 // apply initial theme as early as possible
 if (typeof document !== 'undefined' && document.body) {
@@ -155,6 +184,7 @@ async function fetchScores() {
         if (data.playerScore !== undefined) {
             bestScore = data.playerScore;
             document.getElementById('best-score').textContent = bestScore;
+            syncLevelFromBestScore();
         }
         if (data.playerGames !== undefined) gamesPlayed = data.playerGames;
         updateScoresUI();
@@ -163,12 +193,18 @@ async function fetchScores() {
     }
 }
 
+function syncLevelFromBestScore() {
+    currentLevel = getCanonicalLevel();
+    persistCurrentLevel();
+    updateLevelBadge();
+}
+
 async function saveScore(finalScore) {
     try {
         const r = await fetch('api/scores.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ score: finalScore }),
+            body: JSON.stringify({ score: finalScore, difficulty: currentDifficulty }),
         });
         const j = await r.json();
         if (j.error === 'Not logged in') {
@@ -235,6 +271,7 @@ function showGameOver() {
 }
 
 function updateCoinsDisplay() {
+    persistCoins();
     const el = document.getElementById('coins-display');
     if (el) el.textContent = String(coins);
     const profCoins = document.getElementById('profile-coins');
@@ -256,7 +293,8 @@ function showCelebrationBomb(level) {
 function resetGame() {
     lives = MAX_LIVES;
     score = 0;
-    coins = 0;
+    // Keep previously earned coins across restarts/new games.
+    coins = loadStoredCoins();
     hints = 3;
     awaitingNextQuestion = false;
     updateHearts();
@@ -297,6 +335,8 @@ function updateLevelBadge() {
     const lvl = currentLevel;
     const badge = document.getElementById('level-badge');
     if (badge) badge.textContent = `Lv.${lvl}`;
+    const profLevel = document.getElementById('profile-level');
+    if (profLevel) profLevel.textContent = String(lvl);
 }
 
 function checkLevelProgress() {
@@ -313,6 +353,7 @@ function levelUp({ byPurchase = false } = {}) {
     } else {
         currentLevel++;
     }
+    persistCurrentLevel();
     
     roundsInLevel = 0;
     pointsInLevel = 0;
@@ -379,6 +420,26 @@ function showScorePopup(points, isNegative = false) {
     setTimeout(() => popup.remove(), 1200);
 }
 
+function applyHintCorrectReward() {
+    const hintCoinReward = 2;
+    const hintScoreReward = 1;
+    coins += hintCoinReward;
+    score += hintScoreReward;
+    pointsInLevel += hintScoreReward;
+    roundsInLevel += 1;
+    gamesPlayed += 1;
+    if (score > bestScore) bestScore = score;
+
+    updateCoinsDisplay();
+    const scoreEl = document.getElementById('score');
+    if (scoreEl) scoreEl.textContent = String(pointsInLevel);
+    showScorePopup(hintScoreReward);
+    updateScoresUI();
+    checkLevelProgress();
+    updateDashboard();
+    saveScore(score);
+}
+
 function updateDifficultyBadge() {
     if (difficultySelect) {
         difficultySelect.classList.remove('difficulty-easy', 'difficulty-medium', 'difficulty-hard');
@@ -395,6 +456,7 @@ function openModal(modalId) {
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
+    freezeTimerForOverlay();
 }
 
 function closeModal(modalId) {
@@ -405,6 +467,7 @@ function closeModal(modalId) {
     // only unlock scroll if no modal is open
     const anyOpen = Array.from(document.querySelectorAll('.modal')).some(m => !m.classList.contains('hidden'));
     if (!anyOpen) document.body.style.overflow = '';
+    unfreezeTimerForOverlay();
 }
 
 document.addEventListener('click', (e) => {
@@ -449,6 +512,7 @@ function openProfileDropdown() {
     profilePanel.classList.add('profile-dropdown--open');
     profilePanel.setAttribute('aria-hidden', 'false');
     if (btnOpenProfile) btnOpenProfile.setAttribute('aria-expanded', 'true');
+    freezeTimerForOverlay();
     refreshProfilePanel();
 }
 
@@ -459,6 +523,7 @@ function closeProfileDropdown() {
     }
     if (btnOpenProfile) btnOpenProfile.setAttribute('aria-expanded', 'false');
     closeInlineRename();
+    unfreezeTimerForOverlay();
 }
 
 function closeInlineRename() {
@@ -473,6 +538,13 @@ function closeInlineRename() {
 // removed rank/tier system
 
 async function refreshProfilePanel() {
+    // Always sync latest persisted scores before rendering profile stats
+    try {
+        await fetchScores();
+    } catch (err) {
+        console.warn('[Profile] Could not refresh scores before opening panel:', err);
+    }
+
     const levelScoreEl = document.getElementById('dashboard-current-level-score');
     const avatarImg = document.getElementById('profile-avatar-image');
     if (avatarImg) {
@@ -488,64 +560,29 @@ async function refreshProfilePanel() {
     }
     if (levelScoreEl) levelScoreEl.textContent = String(pointsInLevel);
 
-    const statEls = ['profile-best-score'];
     const currentUsername = typeof window.BANANA_USERNAME === 'string' ? window.BANANA_USERNAME : '';
     const usernameEl = document.getElementById('profile-username');
     if (usernameEl) usernameEl.textContent = currentUsername;
 
-    statEls.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.textContent = 'loading...';
-            el.classList.add('skeleton');
-        }
-    });
+    const bestEl = document.getElementById('profile-best-score');
+    // show the highest known score between local session and backend snapshot
+    const displayBest = Math.max(Number(bestScore) || 0, Number(score) || 0);
+    if (bestEl) bestEl.textContent = String(displayBest);
 
-    try {
-        const base = window.BANANA_BASE || '';
-        const res = await fetch(base + 'Backend/profile_data.php', { headers: { 'Accept': 'application/json' } });
-        const data = await res.json();
+    const headerAvatarLetter = document.querySelector('#player-avatar .avatar-text');
+    const first = (currentUsername || 'U').charAt(0).toUpperCase();
+    if (headerAvatarLetter) headerAvatarLetter.textContent = first;
 
-        statEls.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('skeleton');
-        });
+    updateProfileAvatar(currentUsername);
 
-        if (data?.error) {
-            console.error('Profile fetch error:', data.error);
-            return;
-        }
-
-        const username = (data.username ?? currentUsername).toString();
-        const best = Number(data.best_score ?? 0);
-
-        if (usernameEl) usernameEl.textContent = username;
-        const bestEl = document.getElementById('profile-best-score');
-        const headerAvatarLetter = document.querySelector('#player-avatar .avatar-text');
-
-        if (bestEl) bestEl.textContent = String(best);
-
-        const first = (username || 'U').charAt(0).toUpperCase();
-        if (headerAvatarLetter) headerAvatarLetter.textContent = first;
-
-        updateProfileAvatar(username);
-
-        const badge = document.getElementById('level-badge');
-        if (badge) badge.textContent = `Lv.${currentLevel}`;
-        const profLevel = document.getElementById('profile-level');
-        const profCoins = document.getElementById('profile-coins');
-        if (profLevel) profLevel.textContent = String(currentLevel);
-        if (profCoins) profCoins.textContent = String(coins);
-    } catch (err) {
-        console.error('[Profile]', err);
-        statEls.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.remove('skeleton');
-                el.textContent = 'Error';
-            }
-        });
-    }
+    currentLevel = getCanonicalLevel();
+    persistCurrentLevel();
+    const badge = document.getElementById('level-badge');
+    if (badge) badge.textContent = `Lv.${currentLevel}`;
+    const profLevel = document.getElementById('profile-level');
+    const profCoins = document.getElementById('profile-coins');
+    if (profLevel) profLevel.textContent = String(currentLevel);
+    if (profCoins) profCoins.textContent = String(coins);
 }
 
 // Profile dropdown event listeners
@@ -776,6 +813,7 @@ document.getElementById('btn-upgrade-level')?.addEventListener('click', () => {
         return;
     }
     coins -= COINS_PER_LEVEL;
+    persistCoins();
     updateCoinsDisplay();
     levelUp({ byPurchase: true });
     if (msgEl) {
@@ -807,6 +845,24 @@ function startTimer({ resume = false } = {}) {
             handleTimeUp();
         }
     }, 1000);
+}
+
+function freezeTimerForOverlay() {
+    overlayFreezeCount += 1;
+    if (timer) {
+        clearInterval(timer);
+        timer = null;
+    }
+}
+
+function unfreezeTimerForOverlay() {
+    overlayFreezeCount = Math.max(0, overlayFreezeCount - 1);
+    const hasOpenModal = Array.from(document.querySelectorAll('.modal')).some(m => !m.classList.contains('hidden'));
+    const profileOpen = profilePanel?.classList.contains('profile-dropdown--open');
+    const gameOverVisible = !document.getElementById('game-over-overlay')?.classList.contains('hidden');
+    if (overlayFreezeCount > 0 || hasOpenModal || profileOpen) return;
+    if (isPaused || gameOverVisible || timer) return;
+    startTimer({ resume: true });
 }
 
 function updateTimer() {
@@ -1094,6 +1150,7 @@ document.getElementById('btn-refill-hints')?.addEventListener('click', () => {
         return;
     }
     coins -= HINT_REFILL_COST;
+    persistCoins();
     hints = 3;
     updateCoinsDisplay();
     updateHintsDisplay();
@@ -1139,11 +1196,15 @@ function initGame() {
         difficultySelect.value = currentDifficulty;
         updateDifficultyBadge();
     }
+    currentLevel = getCanonicalLevel();
+    persistCurrentLevel();
+    updateLevelBadge();
     // background music will be started on first user interaction to respect autoplay policies
     updateHintsDisplay();
     const hintBtn = document.getElementById('btn-hint');
     if (hintBtn instanceof HTMLButtonElement) hintBtn.disabled = hints <= 0;
     updateHearts();
+    coins = loadStoredCoins();
     updateCoinsDisplay();
     fetchScores().then(() => {
         updateScoresUI();
@@ -1269,9 +1330,11 @@ const PuzzleHintSystem = (() => {
 
         if (val === currentQuestion.a) {
             AudioManager.play('correct');
+            applyHintCorrectReward();
+            
             if (els.messageEl) {
                 els.messageEl.style.color = '#22c55e';
-                els.messageEl.textContent = "🎉 Correct! Moving to next game...";
+                els.messageEl.textContent = '🎉 Correct! +1 score and +2 🪙 Moving to next game...';
             }
             setTimeout(() => {
                 // Re-enable elements before closing/next use
@@ -1342,3 +1405,131 @@ function showGif(gifPath, duration) {
         currentGifTimeout = null;
     }, duration);
 }
+
+// ---------- Players History ----------
+async function fetchPlayersHistory() {
+    const container = document.getElementById('players-history-panels-container');
+    if (!container) return;
+
+    container.innerHTML = '<div style="text-align: center; padding: 40px;">Loading...</div>';
+
+    try {
+        const base = window.BANANA_BASE || '';
+        const res = await fetch(base + 'Backend/players_history.php', {
+            headers: {
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            cache: 'no-store'
+        });
+        const raw = await res.text();
+        let data = null;
+        try {
+            data = JSON.parse(raw);
+        } catch (parseErr) {
+            // Handle PHP warnings/notices that prepend JSON
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                const maybeJson = raw.slice(firstBrace, lastBrace + 1);
+                try {
+                    data = JSON.parse(maybeJson);
+                } catch (_) {
+                    console.error('[Players History] Invalid JSON:', raw);
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Could not read player history</div>';
+                    return;
+                }
+            } else {
+                console.error('[Players History] Invalid JSON:', raw);
+                container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Could not read player history</div>';
+                return;
+            }
+        }
+
+        if (data?.error === 'Not logged in') {
+            window.location = base + 'Backend/auth/login.php';
+            return;
+        }
+
+        const players = Array.isArray(data?.players)
+            ? data.players
+            : (Array.isArray(data?.data) ? data.data : []);
+
+        if (data?.success && players.length >= 0) {
+            renderPlayersHistory(players);
+        } else {
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Failed to load players history</div>';
+        }
+    } catch (err) {
+        console.error('[Players History]', err);
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #ef4444;">Network error</div>';
+    }
+}
+
+function renderPlayersHistory(players) {
+    const container = document.getElementById('players-history-panels-container');
+    if (!container) return;
+
+    if (players.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: #9ca3af;">No players found</div>';
+        return;
+    }
+
+    container.innerHTML = players.map((player, index) => {
+        const username = player?.username ?? 'Player';
+        const createdAt = player?.created_at ?? '-';
+        const scoreEasy = Number(player?.best_score_easy ?? 0);
+        const scoreMedium = Number(player?.best_score_medium ?? 0);
+        const scoreHard = Number(player?.best_score_hard ?? 0);
+        const gamesEasy = Number(player?.games_played_easy ?? 0);
+        const gamesMedium = Number(player?.games_played_medium ?? 0);
+        const gamesHard = Number(player?.games_played_hard ?? 0);
+        const overallBest = Number(player?.best_score ?? 0);
+        let rankIcon = '';
+        let rankNumber = index + 1;
+        if (index === 0) rankIcon = '🥇';
+        else if (index === 1) rankIcon = '🥈';
+        else if (index === 2) rankIcon = '🥉';
+        else rankIcon = `#${rankNumber}`;
+
+        return `
+            <div class="player-card">
+                <div class="player-card-header">
+                    <div class="player-rank">
+                        <span>${rankIcon}</span>
+                        <span class="player-username">${username}</span>
+                    </div>
+                    <div class="player-joined">Joined: ${createdAt}</div>
+                </div>
+                <div class="player-joined" style="margin-bottom:12px; font-weight:700; color:#f59e0b;">🏆 Best Total: ${overallBest}</div>
+                <div class="difficulty-grid">
+                    <div class="difficulty-card easy">
+                        <div class="difficulty-name">Easy</div>
+                        <div class="difficulty-score">${scoreEasy}</div>
+                        <div class="difficulty-games">${gamesEasy} Games</div>
+                    </div>
+                    <div class="difficulty-card medium">
+                        <div class="difficulty-name">Medium</div>
+                        <div class="difficulty-score">${scoreMedium}</div>
+                        <div class="difficulty-games">${gamesMedium} Games</div>
+                    </div>
+                    <div class="difficulty-card hard">
+                        <div class="difficulty-name">Hard</div>
+                        <div class="difficulty-score">${scoreHard}</div>
+                        <div class="difficulty-games">${gamesHard} Games</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Players History Event Listeners
+document.getElementById('btn-players-history')?.addEventListener('click', () => {
+    openModal('players-history-modal');
+    fetchPlayersHistory();
+});
+
+document.getElementById('btn-close-players-history')?.addEventListener('click', () => {
+    closeModal('players-history-modal');
+});

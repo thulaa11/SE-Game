@@ -1,6 +1,6 @@
 <?php
 session_start();
-// database connection moved under Backend/db
+
 require_once __DIR__ . '/../Backend/db/db.php';
 
 header('Content-Type: application/json');
@@ -44,9 +44,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
     $score = isset($input['score']) ? (int) $input['score'] : 0;
+    $difficulty = isset($input['difficulty']) ? $input['difficulty'] : 'medium';
 
-    $stmt = $conn->prepare("INSERT INTO user_scores (user_id, username, best_score, games_played) VALUES (?, ?, ?, 1) ON DUPLICATE KEY UPDATE best_score = GREATEST(best_score, ?), games_played = games_played + 1");
-    $stmt->bind_param('isii', $_SESSION['user_id'], $_SESSION['username'], $score, $score);
+    $bestScoreCol = 'best_score';
+    $bestScoreDifficultyCol = 'best_score_' . $difficulty;
+    $gamesPlayedCol = 'games_played';
+    $gamesPlayedDifficultyCol = 'games_played_' . $difficulty;
+
+    $stmt = $conn->prepare("INSERT INTO user_scores (user_id, username, best_score, $bestScoreDifficultyCol, games_played, $gamesPlayedDifficultyCol) 
+                             VALUES (?, ?, ?, ?, 1, 1) 
+                             ON DUPLICATE KEY UPDATE 
+                                best_score = GREATEST(best_score, ?), 
+                                $bestScoreDifficultyCol = GREATEST($bestScoreDifficultyCol, ?), 
+                                games_played = games_played + 1,
+                                $gamesPlayedDifficultyCol = $gamesPlayedDifficultyCol + 1");
+    $stmt->bind_param('isiiii', $_SESSION['user_id'], $_SESSION['username'], $score, $score, $score, $score);
     $ok = $stmt->execute();
 
     echo json_encode(['ok' => $ok]);
