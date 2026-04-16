@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up</title>
+    <title>Sign Up | The Banana Game</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -62,18 +62,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body class="auth-page">
     <div class="auth-shell">
         <div class="auth-card">
+            <div class="auth-badge">🌟 New Banana Player</div>
             <h1 class="auth-title">Create your account</h1>
             <p class="auth-subtitle">It only takes a moment to start solving banana puzzles.</p>
 
             <?php if ($message): ?>
-                <p class="error"><?php echo htmlspecialchars($message); ?></p>
+                <p class="error auth-message"><?php echo htmlspecialchars($message); ?></p>
             <?php endif; ?>
 
-            <form id="auth-form" class="auth-form" method="post" action="signup.php">
-                <input type="text" name="username" placeholder="Username" required autofocus>
-                <input type="password" name="password" placeholder="Password" required>
-                <input type="password" name="confirm" placeholder="Confirm Password" required>
-                <button type="submit">Register</button>
+            <form id="auth-form" class="auth-form" method="post" action="signup.php" novalidate>
+                <label class="auth-field">
+                    <span class="auth-label">👤 Username</span>
+                    <input type="text" name="username" placeholder="Choose a username" required autofocus>
+                </label>
+
+                <label class="auth-field">
+                    <span class="auth-label">🔒 Password</span>
+                    <div class="auth-password-wrap">
+                        <input type="password" name="password" id="signup-password" placeholder="Create a password" required>
+                        <button type="button" class="auth-toggle-pass" data-target="signup-password" aria-label="Show password">👀</button>
+                    </div>
+                </label>
+
+                <label class="auth-field">
+                    <span class="auth-label">🔐 Confirm Password</span>
+                    <div class="auth-password-wrap">
+                        <input type="password" name="confirm" id="signup-confirm" placeholder="Type your password again" required>
+                        <button type="button" class="auth-toggle-pass" data-target="signup-confirm" aria-label="Show password">👀</button>
+                    </div>
+                </label>
+
+                <p id="auth-inline-error" class="auth-inline-error" aria-live="polite"></p>
+                <button type="submit">🚀 Create Account</button>
             </form>
             <p class="auth-footer-text">
                 Already have an account?
@@ -82,5 +102,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
     <script src="<?php echo $basePath; ?>frontend/js/signup.js"></script>
+    <script>
+        document.querySelectorAll('.auth-toggle-pass').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-target');
+                const input = document.getElementById(targetId);
+                if (!input) return;
+                input.type = input.type === 'password' ? 'text' : 'password';
+                btn.textContent = input.type === 'password' ? '👀' : '🙈';
+            });
+        });
+    </script>
 </body>
 </html>

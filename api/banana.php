@@ -1,12 +1,9 @@
 <?php
-// Simple proxy for the external Banana API to avoid browser CORS issues.
-// Returns the same CSV format as the original API: "<base64image>,<solution>"
 
 header('Content-Type: text/plain; charset=utf-8');
 
 $remoteUrl = 'https://marcconrad.com/uob/banana/api.php?out=csv&base64=yes';
 
-// Prefer cURL for better error handling if available.
 if (function_exists('curl_init')) {
     $ch = curl_init($remoteUrl);
     curl_setopt_array($ch, [
@@ -34,7 +31,7 @@ if (function_exists('curl_init')) {
     exit;
 }
 
-// Fallback to file_get_contents if cURL is not available.
+
 $context = stream_context_create([
     'http' => [
         'method'  => 'GET',

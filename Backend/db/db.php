@@ -29,10 +29,25 @@ $conn->query(
         user_id INT PRIMARY KEY,
         username VARCHAR(50) NOT NULL,
         best_score INT DEFAULT 0,
+        best_score_easy INT DEFAULT 0,
+        best_score_medium INT DEFAULT 0,
+        best_score_hard INT DEFAULT 0,
         games_played INT DEFAULT 0,
+        games_played_easy INT DEFAULT 0,
+        games_played_medium INT DEFAULT 0,
+        games_played_hard INT DEFAULT 0,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB CHARACTER SET utf8mb4"
 );
+
+// Add difficulty columns if they don't exist (for existing databases)
+$columnsToCheck = ['best_score_easy', 'best_score_medium', 'best_score_hard', 'games_played_easy', 'games_played_medium', 'games_played_hard'];
+foreach ($columnsToCheck as $col) {
+    $result = $conn->query("SHOW COLUMNS FROM user_scores LIKE '$col'");
+    if ($result && $result->num_rows == 0) {
+        $conn->query("ALTER TABLE user_scores ADD COLUMN $col INT DEFAULT 0");
+    }
+}
 
 ?>

@@ -20,7 +20,7 @@ $firstLetter = strtoupper(substr($username, 0, 1));
     <title>The Banana Game</title>
     <!-- Kid-friendly rounded fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="frontend/styles/style.css">
+    <link rel="stylesheet" href="frontend/styles/style.css?v=<?php echo @filemtime(__DIR__ . '/frontend/styles/style.css'); ?>">
     <script>
         window.BANANA_USERNAME = <?php echo json_encode($_SESSION['username']); ?>;
         window.BANANA_BASE = <?php echo json_encode($basePath); ?>;
@@ -94,7 +94,7 @@ $firstLetter = strtoupper(substr($username, 0, 1));
 
                             <div class="profile-stats-grid profile-stats-grid--compact">
                                 <div class="profile-stat">
-                                    <div class="label">🏆 Top Score</div>
+                                    <div class="label">🏆 Best Score</div>
                                     <div id="profile-best-score" class="value">0</div>
                                 </div>
                                 <div class="profile-stat">
@@ -109,14 +109,11 @@ $firstLetter = strtoupper(substr($username, 0, 1));
                             <div class="profile-actions-row">
                                 <button type="button" id="btn-upgrade-level" class="btn-primary" style="width:100%;">Upgrade to Next Level (10 🪙)</button>
                             </div>
+                            <div class="profile-actions-row">
+                                <button type="button" id="btn-players-history" class="btn-primary" style="width:100%;">📜 Players History</button>
+                            </div>
                             <p id="profile-upgrade-message" class="profile-upgrade-message"></p>
 
-                            <section class="profile-leaderboard">
-                                <h4 class="profile-leaderboard-title">Top 3 Players</h4>
-                                <div id="top3-leaderboard" class="top3-leaderboard-list">
-                                    <!-- filled by JS -->
-                                </div>
-                            </section>
                             </div>
                         </div>
                     </div>
@@ -341,6 +338,22 @@ $firstLetter = strtoupper(substr($username, 0, 1));
         </div>
     </div>
 
-    <script src="frontend/js/game.js"></script>
+    <!-- Players History Modal -->
+    <div id="players-history-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="players-history-title" aria-hidden="true">
+        <div class="modal-backdrop" tabindex="-1"></div>
+        <div class="modal-content modal-content--large">
+            <button type="button" class="modal-close" data-modal-close aria-label="Close dialog">✕</button>
+            <h3 id="players-history-title">📜 All Players History</h3>
+            <div id="players-history-panels-container" class="players-history-panels-container">
+                <!-- Panels will be inserted here -->
+                <div style="text-align: center; padding: 40px;">Loading...</div>
+            </div>
+            <div class="modal-actions">
+                <button type="button" id="btn-close-players-history" class="btn-cancel" style="width:100%;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="frontend/js/game.js?v=<?php echo @filemtime(__DIR__ . '/frontend/js/game.js'); ?>"></script>
 </body>
 </html>

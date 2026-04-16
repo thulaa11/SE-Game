@@ -4,12 +4,19 @@
 window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('auth-form');
     if (!form) return;
+    const inlineError = document.getElementById('auth-inline-error');
+
+    function showInlineError(message) {
+        if (inlineError) inlineError.textContent = message;
+    }
+
     form.addEventListener('submit', (e) => {
+        showInlineError('');
         const user = form.querySelector('[name=username]').value.trim();
         const pass = form.querySelector('[name=password]').value;
         if (user === '' || pass === '') {
             e.preventDefault();
-            alert('Please fill both fields');
+            showInlineError('Please enter both username and password.');
             return;
         }
         
