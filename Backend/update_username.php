@@ -44,7 +44,6 @@ try {
     $pdo = pdoConnect();
     $userId = (int)$_SESSION['user_id'];
 
-    // check availability
     $stmt = $pdo->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
     $stmt->execute([$newUsername]);
     if ($stmt->fetch()) {

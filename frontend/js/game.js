@@ -5,27 +5,27 @@ const GAMES_TO_LEVEL = 10;
 const COINS_PER_LEVEL = 10;
 const HINT_REFILL_COST = 5;
 
-// totalScore tracks the overall run; levelScore tracks only the current level
-let score = 0; // total score across the session (kept for backend + stats)
+
+let score = 0; 
 let coins = 0;
 let bestScore = 0;
 let lives = MAX_LIVES;
 let gamesPlayed = 0;
 let topScore = 0;
 let topUser = '';
-let solution = null; // currentAnswer (kept only in JS)
+let solution = null; 
 let timer = null;
 let timeLeft = 30;
-let hints = 3; // hintsLeft
+let hints = 3;
 let isPaused = false;
 let awaitingNextQuestion = false;
 let overlayFreezeCount = 0;
 let soundEnabled = localStorage.getItem('bananaSound') !== 'false';
-let darkModeEnabled = localStorage.getItem('bananaDarkMode') !== 'false'; // default true
+let darkModeEnabled = localStorage.getItem('bananaDarkMode') !== 'false';
 let currentDifficulty = localStorage.getItem('bananaDifficulty') || 'medium';
 let currentLevel = 1;
 let roundsInLevel = 0;
-let pointsInLevel = 0; // score within the current level only
+let pointsInLevel = 0; 
 
 function loadStoredCoins() {
     const raw = localStorage.getItem('bananaCoins');
@@ -55,7 +55,7 @@ function getCanonicalLevel() {
     return Math.max(1, currentLevel, getStoredLevel(), getLevelFromScore(bestScore));
 }
 
-// apply initial theme as early as possible
+
 if (typeof document !== 'undefined' && document.body) {
     document.body.setAttribute('data-theme', darkModeEnabled ? 'dark' : 'light');
 }
@@ -160,7 +160,6 @@ const AudioManager = (() => {
                 a.pause();
             });
         } else if (musicStarted) {
-            // if re‑enabled and music was started before, resume background loop
             resumeMusic();
         }
     }
@@ -173,8 +172,7 @@ async function fetchScores() {
     try {
         const res = await fetch('api/scores.php');
         const data = await res.json();
-        if (data.error === 'Not logged in') {
-            // session expired or not authenticated
+        if (data.error === 'Not logged in') {  
             const base = window.BANANA_BASE || '';
             window.location = base + 'Backend/auth/login.php';
             return;
@@ -228,7 +226,6 @@ function updateScoresUI() {
     if (topUserLabel) {
         topUserLabel.textContent = topUser ? `by ${topUser}` : '';
     }
-    // profile panel quick sync (if open)
     const bestProfileEl = document.getElementById('profile-best-score');
     if (bestProfileEl) bestProfileEl.textContent = String(bestScore);
 }
@@ -250,7 +247,6 @@ function loseLife() {
     if (lives <= 0) {
         showGameOver();
     } else {
-        // Fix 5: Fail GIF on heart loss (not game over)
         showGif('assests/src/Wrong Answer.gif', 1500, 'top');
     }
 }
@@ -293,7 +289,6 @@ function showCelebrationBomb(level) {
 function resetGame() {
     lives = MAX_LIVES;
     score = 0;
-    // Keep previously earned coins across restarts/new games.
     coins = loadStoredCoins();
     hints = 3;
     awaitingNextQuestion = false;
@@ -324,7 +319,6 @@ function resetGame() {
 
 // ---------- Dashboard & profile ----------
 function updateDashboard() {
-    // dashboard now only shows global top, personal best, and current level score
     updateScoresUI();
     const levelScoreEl = document.getElementById('dashboard-current-level-score');
     if (levelScoreEl) levelScoreEl.textContent = String(pointsInLevel);
@@ -365,17 +359,14 @@ function levelUp({ byPurchase = false } = {}) {
     if (levelScoreEl) levelScoreEl.textContent = String(pointsInLevel);
 
     AudioManager.play('congrats');
-    // Blast / Level Move GIF (Fix 5)
     showGif('assests/src/Level Up Blast.gif', 1500, 'center');
     setTimeout(() => {
-        // Winning / Level Up GIF (Fix 5)
         showGif('assests/src/Celebration Panel.gif', 2500, 'center');
         showLevelCelebrationPanel({ level: currentLevel, coinsAwarded: byPurchase ? 0 : COINS_PER_LEVEL });
     }, 1500);
 }
 
 function showLevelCelebrationPanel({ level, coinsAwarded }) {
-    // Hide "Next Question" button if it was shown (Fix for hint auto-next)
     const nextBtn = document.getElementById('new-game-btn');
     if (nextBtn) nextBtn.classList.add('hidden');
     
@@ -447,9 +438,6 @@ function updateDifficultyBadge() {
     }
     updateDashboard();
 }
-
-// UI Interactions / Modals
-// ---------- Global modal system (per spec) ----------
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (!modal) return;
@@ -464,7 +452,6 @@ function closeModal(modalId) {
     if (!modal) return;
     modal.classList.add('hidden');
     modal.setAttribute('aria-hidden', 'true');
-    // only unlock scroll if no modal is open
     const anyOpen = Array.from(document.querySelectorAll('.modal')).some(m => !m.classList.contains('hidden'));
     if (!anyOpen) document.body.style.overflow = '';
     unfreezeTimerForOverlay();
@@ -494,7 +481,7 @@ function showMessage(text, kind = '') {
     el.className = kind;
 }
 
-// ---------- Profile dropdown ----------
+
 const profilePanel = document.getElementById('profile-panel');
 const profileDropdownWrapper = document.querySelector('.profile-dropdown-wrapper');
 const btnOpenProfile = document.getElementById('btn-open-profile');
@@ -535,16 +522,15 @@ function closeInlineRename() {
     if (btnEdit) btnEdit.classList.remove('editing');
 }
 
-// removed rank/tier system
 
 async function refreshProfilePanel() {
-    // Always sync latest persisted scores before rendering profile stats
     try {
         await fetchScores();
     } catch (err) {
         console.warn('[Profile] Could not refresh scores before opening panel:', err);
     }
-
+    
+    // avatar api
     const levelScoreEl = document.getElementById('dashboard-current-level-score');
     const avatarImg = document.getElementById('profile-avatar-image');
     if (avatarImg) {
@@ -565,7 +551,6 @@ async function refreshProfilePanel() {
     if (usernameEl) usernameEl.textContent = currentUsername;
 
     const bestEl = document.getElementById('profile-best-score');
-    // show the highest known score between local session and backend snapshot
     const displayBest = Math.max(Number(bestScore) || 0, Number(score) || 0);
     if (bestEl) bestEl.textContent = String(displayBest);
 
@@ -585,13 +570,11 @@ async function refreshProfilePanel() {
     if (profCoins) profCoins.textContent = String(coins);
 }
 
-// Profile dropdown event listeners
 document.getElementById('btn-open-profile')?.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleProfileDropdown();
 });
 
-// Add CSS for avatar styling
 const avatarStyle = document.createElement('style');
 avatarStyle.textContent = `
 #profile-avatar-image {
@@ -614,7 +597,6 @@ document.getElementById('btn-open-profile')?.addEventListener('keydown', (e) => 
 });
 document.getElementById('btn-close-profile')?.addEventListener('click', closeProfileDropdown);
 
-// Close dropdown when clicking outside (desktop only)
 document.addEventListener('click', (e) => {
     if (profilePanel?.classList.contains('profile-dropdown--open')) {
         const isMobile = window.innerWidth <= 768;
@@ -624,7 +606,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Close dropdown on mobile when clicking outside the panel
 document.addEventListener('click', (e) => {
     if (profilePanel?.classList.contains('profile-dropdown--open')) {
         const isMobile = window.innerWidth <= 768;
@@ -634,7 +615,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// ---------- Logout modal ----------
 document.getElementById('btn-logout-icon')?.addEventListener('click', (e) => { e.preventDefault(); openModal('logout-confirm-modal'); });
 document.getElementById('btn-cancel-logout')?.addEventListener('click', () => closeModal('logout-confirm-modal'));
 
@@ -674,7 +654,6 @@ document.getElementById('btn-confirm-logout')?.addEventListener('click', async (
     }
 });
 
-// ---------- Settings modal + persistence ----------
 document.getElementById('btn-settings')?.addEventListener('click', () => openModal('settings-modal'));
 document.getElementById('btn-close-settings')?.addEventListener('click', () => closeModal('settings-modal'));
 
@@ -701,7 +680,6 @@ const darkToggle = document.getElementById('toggle-dark-mode');
     });
 }
 
-// ---------- Change username inline form ----------
 const inlineRenameForm = document.getElementById('inline-rename-form');
 const inlineNewUsernameInput = document.getElementById('inline-new-username');
 const inlineRenameMessage = document.getElementById('inline-rename-message');
@@ -764,7 +742,7 @@ document.getElementById('btn-inline-save-rename')?.addEventListener('click', asy
             const usernameEl = document.getElementById('profile-username');
             if (usernameEl) usernameEl.textContent = data.username;
 
-            // refresh DiceBear avatar when username changes
+           s
             updateProfileAvatar(data.username);
 
             setTimeout(closeInlineRename, 1500);
@@ -916,7 +894,6 @@ document.getElementById('btn-restart')?.addEventListener('click', () => {
     resetGame();
 });
 
-// ---------- Timeout overlay ----------
 function showTimeoutAnimation() {
     const overlay = document.getElementById('timeout-overlay');
     const timeoutAnswer = document.getElementById('timeout-answer');
@@ -972,7 +949,6 @@ async function loadPuzzle() {
         msgEl.className = '';
     }
     try {
-        // Use backend proxy endpoint to avoid browser CORS issues with the external Banana API
         const response = await fetch('api/banana.php');
         const data = await response.text();
         const parts = data.split(',');
@@ -983,7 +959,6 @@ async function loadPuzzle() {
                 imgEl.classList.remove('loading');
                 if (msgEl) msgEl.textContent = '';
                     startTimer({ resume: false });
-                    // respect autoplay policy: only (re)start music after user interaction
                     AudioManager.maybeStartMusicFromUserGesture();
             };
             imgEl.onerror = function() {
@@ -1017,7 +992,6 @@ guessForm?.addEventListener('submit', function(e) {
     const submitBtn = document.getElementById('btn-submit');
     if (submitBtn instanceof HTMLButtonElement) submitBtn.disabled = false;
 
-    // Button press animation
     const btn = document.getElementById('btn-submit');
     if (btn) { btn.classList.add('btn-press'); setTimeout(() => btn.classList.remove('btn-press'), 150); }
     AudioManager.maybeStartMusicFromUserGesture();
@@ -1025,14 +999,10 @@ guessForm?.addEventListener('submit', function(e) {
     clearInterval(timer);
     const guess = parseInt(guessInput?.value);
 
-    // Hide explanation
-    // const expPanel = document.getElementById('explanation-panel');
-    // if (expPanel) expPanel.classList.add('hidden');
     document.getElementById('puzzle-image')?.classList.remove('correct-highlight');
 
     if (guess === solution) {
         AudioManager.play('correct');
-        // Correct Answer GIF (Fix 5)
         showGif('assests/src/Correct Answer.gif', 1000, 'answer-area');
         const points = 1;
         score += points;
@@ -1055,7 +1025,6 @@ guessForm?.addEventListener('submit', function(e) {
         setTimeout(loadPuzzle, 1500);
     } else {
         AudioManager.play('wrong');
-        // Fail GIF (Fix 5)
         showGif('assests/src/Wrong Answer.gif', 1500, 'top');
         loseLife();
         roundsInLevel += 1;
@@ -1075,7 +1044,7 @@ guessForm?.addEventListener('submit', function(e) {
     if (guessInput) guessInput.value = '';
 });
 
-// ---------- Hint System ----------
+
 function applyHint() {
     if (isPaused) return;
     if (hints <= 0) {
@@ -1087,11 +1056,9 @@ function applyHint() {
         return;
     }
 
-    // consume a hint without penalties
     hints = Math.max(0, hints - 1);
     AudioManager.play('hint');
 
-    // update UI
     updateHintsDisplay();
 
     const hintBtn = document.getElementById('btn-hint');
@@ -1157,14 +1124,14 @@ document.getElementById('btn-refill-hints')?.addEventListener('click', () => {
     AudioManager.play('coin');
 });
 
-// ---------- Keyboard shortcuts ----------
+// ---------- Keyboard shortcut ----------
 document.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'h' && document.activeElement !== guessInput) {
         document.getElementById('btn-hint')?.click();
     }
 });
 
-// ---------- New game / difficulty ----------
+
 difficultySelect?.addEventListener('change', function() {
     currentDifficulty = this.value;
     localStorage.setItem('bananaDifficulty', currentDifficulty);
@@ -1178,14 +1145,11 @@ document.getElementById('new-game-btn')?.addEventListener('click', function() {
         this.textContent = '🔄 New Game';
         loadPuzzle();
     } else {
-        // If not awaiting, it acts as a manual skip or restart round
         loadPuzzle();
     }
 });
 
-// ---------- Init ----------
 function initGame() {
-    // Initial theme sync (Fix 2)
     const storedTheme = localStorage.getItem('bananaDarkMode');
     if (storedTheme !== null) {
         darkModeEnabled = storedTheme === 'true';
@@ -1199,7 +1163,6 @@ function initGame() {
     currentLevel = getCanonicalLevel();
     persistCurrentLevel();
     updateLevelBadge();
-    // background music will be started on first user interaction to respect autoplay policies
     updateHintsDisplay();
     const hintBtn = document.getElementById('btn-hint');
     if (hintBtn instanceof HTMLButtonElement) hintBtn.disabled = hints <= 0;
@@ -1213,15 +1176,13 @@ function initGame() {
     loadPuzzle();
 }
 
-// Start loading sequence on page load
 if (loadingScreen && appContent) {
     runLoadingSequence();
 } else {
     initGame();
 }
 
-// ---------- Interactive Puzzle Hint (Fix 3) ----------
-// ---------- Interactive Puzzle Hint (Fix 3) ----------
+// ---------- Interactive Puzzle Hint----------
 const PuzzleHintSystem = (() => {
     const questions = [
         { q: "🌙 How many moons does Earth have?", a: 1 },
@@ -1263,13 +1224,11 @@ const PuzzleHintSystem = (() => {
             return;
         }
         
-        // Use global solution from game.js
         if (typeof solution === 'undefined' || solution === null || Number.isNaN(Number(solution))) {
             showMessage('Wait for the puzzle to load first!', 'error');
             return;
         }
 
-        // Pause timer while puzzle is open
         if (timer) {
             clearInterval(timer);
             timer = null;
@@ -1302,10 +1261,8 @@ const PuzzleHintSystem = (() => {
         els.overlay.classList.remove('hidden');
         els.inputEl?.focus();
 
-        // Consume hint immediately upon opening the puzzle (one chance)
         consumeHint();
 
-        // Re-bind events to current elements just in case
         if (els.submitBtn) els.submitBtn.onclick = check;
         if (els.cancelBtn) els.cancelBtn.onclick = close;
         if (els.inputEl) els.inputEl.onkeydown = (e) => { if (e.key === 'Enter') check(); };
@@ -1313,7 +1270,6 @@ const PuzzleHintSystem = (() => {
 
     function close() {
         getElements().overlay?.classList.add('hidden');
-        // Resume timer if it was running before
         if (wasTimerRunning && !isPaused) {
             startTimer({ resume: true });
         }
@@ -1337,7 +1293,6 @@ const PuzzleHintSystem = (() => {
                 els.messageEl.textContent = '🎉 Correct! +1 score and +2 🪙 Moving to next game...';
             }
             setTimeout(() => {
-                // Re-enable elements before closing/next use
                 if (els.inputEl) els.inputEl.disabled = false;
                 if (els.submitBtn) els.submitBtn.disabled = false;
                 if (els.cancelBtn) els.cancelBtn.disabled = false;
@@ -1352,7 +1307,6 @@ const PuzzleHintSystem = (() => {
                 els.messageEl.textContent = "Oops! Wrong answer. Returning to game... 🐒";
             }
             setTimeout(() => {
-                // Re-enable elements for next time before closing
                 if (els.inputEl) els.inputEl.disabled = false;
                 if (els.submitBtn) els.submitBtn.disabled = false;
                 if (els.cancelBtn) els.cancelBtn.disabled = false;
@@ -1382,14 +1336,12 @@ document.getElementById('btn-hint')?.addEventListener('click', () => {
     PuzzleHintSystem.open();
 });
 
-// ---------- GIF Animation System (Fix 5) ----------
 let currentGifTimeout = null;
 function showGif(gifPath, duration) {
     const container = document.getElementById('dashboard-gif-container');
     const wrapper = container?.querySelector('.gif-wrapper');
     if (!container || !wrapper) return;
 
-    // Clear previous
     if (currentGifTimeout) clearTimeout(currentGifTimeout);
     wrapper.innerHTML = '';
 
@@ -1406,7 +1358,6 @@ function showGif(gifPath, duration) {
     }, duration);
 }
 
-// ---------- Players History ----------
 async function fetchPlayersHistory() {
     const container = document.getElementById('players-history-panels-container');
     if (!container) return;
@@ -1427,7 +1378,6 @@ async function fetchPlayersHistory() {
         try {
             data = JSON.parse(raw);
         } catch (parseErr) {
-            // Handle PHP warnings/notices that prepend JSON
             const firstBrace = raw.indexOf('{');
             const lastBrace = raw.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -1524,7 +1474,6 @@ function renderPlayersHistory(players) {
     }).join('');
 }
 
-// Players History Event Listeners
 document.getElementById('btn-players-history')?.addEventListener('click', () => {
     openModal('players-history-modal');
     fetchPlayersHistory();

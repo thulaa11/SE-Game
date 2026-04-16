@@ -4,14 +4,12 @@ session_start();
 header('Content-Type: application/json');
 require_once 'db/db.php';
 
-// Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['error' => 'Not logged in']);
     exit;
 }
 
 try {
-    // Fetch all players with difficulty-specific scores
     $query = "SELECT 
                 u.id,
                 u.username,

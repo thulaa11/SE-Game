@@ -1,19 +1,15 @@
 <?php
-// auth/db.php
-// simple database connection helper for the banana game authentication
 
 $DB_HOST = 'localhost';
 $DB_USER = 'root';
 $DB_PASS = '';
 $DB_NAME = 'game_db';
 
-// create connection
 $conn = new mysqli($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
 if ($conn->connect_error) {
     die('Database connection failed: ' . $conn->connect_error);
 }
 
-// ensure users table exists
 $conn->query(
     "CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -23,7 +19,6 @@ $conn->query(
     ) ENGINE=InnoDB CHARACTER SET utf8mb4"
 );
 
-// ensure user_scores table exists
 $conn->query(
     "CREATE TABLE IF NOT EXISTS user_scores (
         user_id INT PRIMARY KEY,
@@ -41,7 +36,6 @@ $conn->query(
     ) ENGINE=InnoDB CHARACTER SET utf8mb4"
 );
 
-// Add difficulty columns if they don't exist (for existing databases)
 $columnsToCheck = ['best_score_easy', 'best_score_medium', 'best_score_hard', 'games_played_easy', 'games_played_medium', 'games_played_hard'];
 foreach ($columnsToCheck as $col) {
     $result = $conn->query("SHOW COLUMNS FROM user_scores LIKE '$col'");
